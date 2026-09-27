@@ -1,3 +1,26 @@
+diff --git a/Signal/AppLaunch/AppDelegate.swift b/Signal/AppLaunch/AppDelegate.swift
+index 44e14af..a3175f4 100644
+--- a/Signal/AppLaunch/AppDelegate.swift
++++ b/Signal/AppLaunch/AppDelegate.swift
+@@ -17,6 +17,18 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
+ 
+     // MARK: - Lifecycle
+ 
++#if targetEnvironment(macCatalyst)
++    func application(
++        _ application: UIApplication,
++        willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
++    ) -> Bool {
++        // AppKit's AutoFill heuristics start an "AutoFill (Signal)" helper
++        // process for the app; Signal has no use for it.
++        UserDefaults.standard.set(false, forKey: "NSAutoFillHeuristicsEnabled")
++        return true
++    }
++#endif
++
+     func application(
+         _ application: UIApplication,
+         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
 diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
 index b6ff739..a8149a3 100644
 --- a/Signal/AppLaunch/AppLifecycleManager.swift
