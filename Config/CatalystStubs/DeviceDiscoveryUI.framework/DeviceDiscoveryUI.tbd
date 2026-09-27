@@ -1,0 +1,8 @@
+--- !tapi-tbd
+# Link-time stand-in for an iOS-only framework the Signal target links explicitly. Nothing uses
+# it on Mac Catalyst (that code is compiled out) and it's weak-linked, so it's never loaded.
+tbd-version:     4
+targets:         [ arm64-maccatalyst ]
+install-name:    '/System/Library/Frameworks/DeviceDiscoveryUI.framework/DeviceDiscoveryUI'
+current-version: 1
+...

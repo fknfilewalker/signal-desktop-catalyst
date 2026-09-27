@@ -1,0 +1,1238 @@
+diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
+index b6ff739..a8149a3 100644
+--- a/Signal/AppLaunch/AppLifecycleManager.swift
++++ b/Signal/AppLaunch/AppLifecycleManager.swift
+@@ -96,9 +96,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+             return
+         }
+ 
++#if !targetEnvironment(macCatalyst)
++        // On Mac, stay connected while inactive or with the window closed, like Signal Desktop:
++        // Mac builds have no push notifications to wake them for new messages.
+         appReadiness.runNowOrWhenAppDidBecomeReadySync {
+             self.refreshConnection(isAppActive: false)
+         }
++#endif
+ 
+         clearAppropriateNotificationsAndRestoreBadgeCount()
+ 
+@@ -913,9 +917,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+         // Fetch messages as soon as possible after launching. In particular, when
+         // launching from the background, without this, we end up waiting some extra
+         // seconds before receiving an actionable push notification.
++#if targetEnvironment(macCatalyst)
++        // Mac builds stay connected whether or not they're active (see willResignActive).
++        self.refreshConnection(isAppActive: true)
++#else
+         if !appContext.isMainAppAndActive {
+             self.refreshConnection(isAppActive: false)
+         }
++#endif
+ 
+         if registeredState != nil {
+             // This should happen at any launch, background or foreground.
+diff --git a/Signal/AppLaunch/MainAppContext.swift b/Signal/AppLaunch/MainAppContext.swift
+index e058cae..02d54cc 100644
+--- a/Signal/AppLaunch/MainAppContext.swift
++++ b/Signal/AppLaunch/MainAppContext.swift
+@@ -168,12 +168,27 @@ class MainAppContext: NSObject, AppContext {
+     }
+ 
+     func appSharedDataDirectoryPath() -> String {
++#if targetEnvironment(macCatalyst)
++        // No app extensions run on Mac, so there's nothing to share data with: keep it in the
++        // app's own sandbox instead of an app group, which needs a provisioning profile.
++        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
++            .appendingPathComponent("SharedData", isDirectory: true)
++        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
++        return url.path
++#else
+         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup)!.path
++#endif
+     }
+ 
+     func appDatabaseBaseDirectoryPath() -> String { appSharedDataDirectoryPath() }
+ 
+-    func appUserDefaults() -> UserDefaults { UserDefaults(suiteName: TSConstants.applicationGroup)! }
++    func appUserDefaults() -> UserDefaults {
++#if targetEnvironment(macCatalyst)
++        UserDefaults.standard
++#else
++        UserDefaults(suiteName: TSConstants.applicationGroup)!
++#endif
++    }
+ 
+     func canPresentNotifications() -> Bool { true }
+ 
+diff --git a/Signal/AppLaunch/SceneDelegate.swift b/Signal/AppLaunch/SceneDelegate.swift
+index b840bbc..c792dca 100644
+--- a/Signal/AppLaunch/SceneDelegate.swift
++++ b/Signal/AppLaunch/SceneDelegate.swift
+@@ -32,6 +32,25 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+             return
+         }
+ 
++#if targetEnvironment(macCatalyst)
++        // The Mac build declares multi-window support only so that closing the window doesn't quit
++        // the app (script/build-catalyst.sh). Signal has one window: refuse a second one while the
++        // first is open. Reopening after the window was closed reconnects Signal's UI (connectUI).
++        let hasOtherWindow = UIApplication.shared.connectedScenes.contains {
++            $0 !== windowScene && $0 is UIWindowScene && $0.activationState != .unattached
++        }
++        if hasOtherWindow {
++            UIApplication.shared.requestSceneSessionDestruction(session, options: nil)
++            return
++        }
++
++        // Like other Mac apps with a sidebar, don't show the window title: macOS puts it at the
++        // leading edge of the conversation, over its header. Without a separator line, the title
++        // bar blends into full-window views like the media viewer.
++        windowScene.titlebar?.titleVisibility = .hidden
++        windowScene.titlebar?.separatorStyle = .none
++#endif
++
+         self.window = lifecycleManager.connectUI(in: windowScene)
+ 
+         // These arrive in the connection options rather than via the callbacks
+diff --git a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift b/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
+index 854e42c..4e6b0af 100644
+--- a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
++++ b/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
+@@ -422,10 +422,13 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
+         guard let url = try? attachmentStream.makeDecryptedCopy(filename: sourceFilename) else {
+             return nil
+         }
++        // canPreview isn't available on Mac Catalyst, where Quick Look handles most files.
++        #if !targetEnvironment(macCatalyst)
+         guard QLPreviewController.canPreview(url as NSURL) else {
+             try? OWSFileSystem.deleteFile(url: url)
+             return nil
+         }
++        #endif
+         self.qlPreviewTmpFileUrl = url
+ 
+         let previewController = QLPreviewController()
+diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
+index b3231e6..e8fc497 100644
+--- a/Signal/ConversationView/ConversationInputToolbar.swift
++++ b/Signal/ConversationView/ConversationInputToolbar.swift
+@@ -934,6 +934,15 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+                 }
+             }()
+             attachmentButton.setButtonState(buttonState, usingAnimator: animator)
++#if targetEnvironment(macCatalyst)
++            // Mac Catalyst never shows a custom inputView, so the attachment keyboard can't
++            // appear. The (+) button opens a menu of its options instead.
++            let showsAttachmentMenu = buttonState == .add
++            if attachmentButton.showsMenuAsPrimaryAction != showsAttachmentMenu {
++                attachmentButton.menu = showsAttachmentMenu ? UIMenu(children: attachmentMenuActions()) : nil
++                attachmentButton.showsMenuAsPrimaryAction = showsAttachmentMenu
++            }
++#endif
+         }
+ 
+         //
+@@ -3045,8 +3054,14 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+ 
+     func showStickerKeyboard() {
+         AssertIsOnMainThread()
++#if targetEnvironment(macCatalyst)
++        if stickerPopover == nil {
++            presentStickerPopover()
++        }
++#else
+         guard desiredKeyboardType != .sticker else { return }
+         toggleKeyboardType(.sticker, animated: false)
++#endif
+     }
+ 
+     private var _attachmentKeyboard: AttachmentKeyboard?
+@@ -3062,8 +3077,14 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+ 
+     func showAttachmentKeyboard() {
+         AssertIsOnMainThread()
++#if targetEnvironment(macCatalyst)
++        // The attachment keyboard can't appear on Mac (the attachment button's menu replaces it).
++        // Signal reopens it after a picker is cancelled; setting it here would only leave the
++        // attachment button showing its close state.
++#else
+         guard desiredKeyboardType != .attachment else { return }
+         toggleKeyboardType(.attachment, animated: false)
++#endif
+     }
+ 
+     private func toggleKeyboardType(_ keyboardType: KeyboardType, animated: Bool) {
+@@ -3243,6 +3264,51 @@ extension ConversationInputToolbar {
+         inputToolbarDelegate.cameraButtonPressed()
+     }
+ 
++#if targetEnvironment(macCatalyst)
++    /// The attachment keyboard's options, as a menu for the attachment button on Mac.
++    private func attachmentMenuActions() -> [UIMenuElement] {
++        func action(
++            _ title: String,
++            _ systemImageName: String,
++            _ handler: @escaping (any ConversationInputToolbarDelegate) -> Void,
++        ) -> UIAction {
++            return UIAction(title: title, image: UIImage(systemName: systemImageName)) { [weak self] _ in
++                self?.performAttachmentAction(handler)
++            }
++        }
++
++        let isGroup = inputToolbarDelegate?.isGroup() ?? false
++        // No photo library option on Mac: photos are sent as files, or dropped on the conversation.
++        var actions = [UIAction]()
++        if RemoteConfig.current.enableGifSearch {
++            actions.append(action(OWSLocalizedString("ATTACHMENT_KEYBOARD_GIF", comment: "A button to select a GIF from the Attachment Keyboard"), "sparkles.rectangle.stack") { $0.gifButtonPressed() })
++        }
++        actions += [
++            action(OWSLocalizedString("ATTACHMENT_KEYBOARD_FILE", comment: "A button to select a file from the Attachment Keyboard"), "doc") { $0.fileButtonPressed() },
++            action(OWSLocalizedString("ATTACHMENT_KEYBOARD_POLL", comment: "A button to select a poll from the Attachment Keyboard"), "chart.bar.xaxis") { $0.pollButtonPressed() },
++            action(OWSLocalizedString("ATTACHMENT_KEYBOARD_CONTACT", comment: "A button to select a contact from the Attachment Keyboard"), "person.crop.circle") { $0.contactButtonPressed() },
++            action(OWSLocalizedString("ATTACHMENT_KEYBOARD_LOCATION", comment: "A button to select a location from the Attachment Keyboard"), "location") { $0.locationButtonPressed() },
++        ]
++        if !isGroup, SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled {
++            actions.append(action(OWSLocalizedString("ATTACHMENT_KEYBOARD_PAYMENT", comment: "A button to select a payment from the Attachment Keyboard"), "creditcard") { $0.paymentButtonPressed() })
++        }
++        return actions
++    }
++
++    /// Like the attachment keyboard, which only appears once the conversation is unblocked.
++    private func performAttachmentAction(_ handler: @escaping (any ConversationInputToolbarDelegate) -> Void) {
++        guard let inputToolbarDelegate else { return }
++        guard inputToolbarDelegate.isBlockedConversation() else {
++            handler(inputToolbarDelegate)
++            return
++        }
++        inputToolbarDelegate.showUnblockConversationUI { [weak self] isBlocked in
++            guard !isBlocked, let inputToolbarDelegate = self?.inputToolbarDelegate else { return }
++            handler(inputToolbarDelegate)
++        }
++    }
++#endif
++
+     private func addOrCancelButtonPressed() {
+         ImpactHapticFeedback.impactOccurred(style: .light)
+         if isEditingMessage {
+@@ -3286,9 +3352,72 @@ extension ConversationInputToolbar {
+             inputToolbarDelegate?.presentManageStickersView()
+             return
+         }
++#if targetEnvironment(macCatalyst)
++        presentStickerPopover()
++#else
+         toggleKeyboardType(.sticker, animated: true)
++#endif
++    }
++
++#if targetEnvironment(macCatalyst)
++    private var containingViewController: UIViewController? {
++        return sequence(first: self as UIResponder, next: { $0.next })
++            .lazy.compactMap { $0 as? UIViewController }.first
+     }
+ 
++    private var stickerPopover: UIViewController? {
++        guard
++            let presented = containingViewController?.presentedViewController,
++            presented.popoverPresentationController?.sourceView === stickerButton
++        else {
++            return nil
++        }
++        return presented
++    }
++
++    private class StickerPopoverViewController: UIViewController {
++        private let stickerKeyboard: StickerKeyboard
++
++        init(stickerKeyboard: StickerKeyboard) {
++            self.stickerKeyboard = stickerKeyboard
++            super.init(nibName: nil, bundle: nil)
++            preferredContentSize = CGSize(width: 400, height: 360)
++        }
++
++        required init?(coder: NSCoder) {
++            fatalError("init(coder:) has not been implemented")
++        }
++
++        override func viewDidLoad() {
++            super.viewDidLoad()
++            view.backgroundColor = .Signal.background
++        }
++
++        override func viewIsAppearing(_ animated: Bool) {
++            super.viewIsAppearing(animated)
++            // Add the keyboard once the popover has its final size: the sticker picker pages
++            // by its width, and opens on the recent stickers only if that width is right.
++            guard stickerKeyboard.superview == nil else { return }
++            // On iOS 26 the sticker keyboard is transparent over the keyboard's backdrop.
++            stickerKeyboard.backgroundColor = .Signal.background
++            view.addSubview(stickerKeyboard)
++            stickerKeyboard.autoPinEdgesToSuperviewEdges()
++            view.layoutIfNeeded()
++        }
++    }
++
++    /// Mac Catalyst never shows a custom inputView, so the sticker keyboard can't appear in place
++    /// of the system keyboard. Show it in a popover from the sticker button instead.
++    private func presentStickerPopover() {
++        guard let presenter = containingViewController else { return }
++
++        let viewController = StickerPopoverViewController(stickerKeyboard: StickerKeyboard(delegate: self))
++        viewController.modalPresentationStyle = .popover
++        viewController.popoverPresentationController?.sourceView = stickerButton
++        presenter.present(viewController, animated: true)
++    }
++#endif
++
+     private func keyboardButtonPressed() {
+         ImpactHapticFeedback.impactOccurred(style: .light)
+ 
+@@ -3359,11 +3488,22 @@ extension ConversationInputToolbar: StickerKeyboardDelegate {
+ 
+     public func stickerKeyboard(_: StickerKeyboard, didSelect stickerInfo: StickerInfo) {
+         AssertIsOnMainThread()
++#if targetEnvironment(macCatalyst)
++        stickerPopover?.dismiss(animated: true)
++#endif
+         inputToolbarDelegate?.sendSticker(stickerInfo)
+     }
+ 
+     public func stickerKeyboardDidRequestPresentManageStickersView(_ stickerKeyboard: StickerKeyboard) {
+         AssertIsOnMainThread()
++#if targetEnvironment(macCatalyst)
++        if let stickerPopover {
++            stickerPopover.dismiss(animated: true) { [weak self] in
++                self?.inputToolbarDelegate?.presentManageStickersView()
++            }
++            return
++        }
++#endif
+         inputToolbarDelegate?.presentManageStickersView()
+     }
+ }
+diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
+index f136aef..4309b89 100644
+--- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
++++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
+@@ -799,6 +799,47 @@ extension ConversationViewController: UIDocumentPickerDelegate {
+     }
+ 
+     public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
++        didPickDocument(at: url)
++    }
++
++#if targetEnvironment(macCatalyst)
++    // On Mac the picker only calls this method, not the deprecated single-document one above.
++    public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
++        didPickDocuments(at: urls)
++    }
++
++    /// Sends files from the document picker or dropped on the conversation, with one approval
++    /// dialog for all of them.
++    private func didPickDocuments(at urls: [URL]) {
++        guard urls.count > 1 else {
++            if let url = urls.first {
++                didPickDocument(at: url)
++            }
++            return
++        }
++
++        let attachmentLimits = OutgoingAttachmentLimits.currentLimits()
++        var attachments = [PreviewableAttachment]()
++        for url in urls {
++            let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType ?? .data
++            let dataSource = DataSourcePath(fileUrl: url, ownership: .owned)
++            dataSource.sourceFilename = url.lastPathComponent
++            do {
++                attachments.append(try PreviewableAttachment.buildAttachment(
++                    dataSource: dataSource,
++                    dataUTI: contentType.identifier,
++                    attachmentLimits: attachmentLimits,
++                ))
++            } catch {
++                showErrorAlert(attachmentError: error as? SignalAttachmentError)
++                return
++            }
++        }
++        showApprovalDialog(forAttachments: attachments, attachmentLimits: attachmentLimits)
++    }
++#endif
++
++    private func didPickDocument(at url: URL) {
+         let resourceValues: URLResourceValues?
+         do {
+             resourceValues = try url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+@@ -1040,3 +1081,65 @@ extension ConversationViewController: PollSendDelegate {
+         )
+     }
+ }
++
++#if targetEnvironment(macCatalyst)
++
++// MARK: - Drag and drop
++
++/// Files dropped on a conversation on Mac are sent like files from the document picker.
++extension ConversationViewController: UIDropInteractionDelegate {
++    public func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
++        return inputToolbar != nil && session.hasItemsConforming(toTypeIdentifiers: [UTType.item.identifier])
++    }
++
++    public func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession) -> UIDropProposal {
++        return UIDropProposal(operation: .copy)
++    }
++
++    public func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
++        let itemProviders = session.items.map(\.itemProvider)
++        Task { @MainActor in
++            var urls = [URL]()
++            for itemProvider in itemProviders {
++                if let url = await Self.copyDroppedFile(from: itemProvider) {
++                    urls.append(url)
++                }
++            }
++            self.didPickDocuments(at: urls)
++        }
++    }
++
++    /// Copies a dropped file into our container: the provider's file is only available during
++    /// its callback.
++    private static func copyDroppedFile(from itemProvider: NSItemProvider) async -> URL? {
++        let typeIdentifiers = itemProvider.registeredTypeIdentifiers
++        guard
++            let typeIdentifier = typeIdentifiers.first(where: { UTType($0)?.conforms(to: .data) == true })
++                ?? typeIdentifiers.first
++        else {
++            return nil
++        }
++        return await withCheckedContinuation { continuation in
++            _ = itemProvider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
++                guard let url else {
++                    Logger.warn("Couldn't load dropped file: \(error as Optional)")
++                    continuation.resume(returning: nil)
++                    return
++                }
++                let copyUrl = OWSFileSystem.temporaryFileUrl(
++                    fileName: url.lastPathComponent,
++                    isAvailableWhileDeviceLocked: false,
++                )
++                do {
++                    try FileManager.default.copyItem(at: url, to: copyUrl)
++                    continuation.resume(returning: copyUrl)
++                } catch {
++                    Logger.warn("Couldn't copy dropped file: \(error)")
++                    continuation.resume(returning: nil)
++                }
++            }
++        }
++    }
++}
++
++#endif
+diff --git a/Signal/ConversationView/ConversationViewController.swift b/Signal/ConversationView/ConversationViewController.swift
+index f755644..7218fd2 100644
+--- a/Signal/ConversationView/ConversationViewController.swift
++++ b/Signal/ConversationView/ConversationViewController.swift
+@@ -222,6 +222,9 @@ public final class ConversationViewController: OWSViewController {
+         owsAssertDebug(self.navigationController != nil || self.isInPreviewPlatter)
+ 
+         super.viewDidLoad()
++#if targetEnvironment(macCatalyst)
++        view.addInteraction(UIDropInteraction(delegate: self))
++#endif
+ 
+         createContents()
+         createConversationScrollButtons()
+@@ -261,6 +264,14 @@ public final class ConversationViewController: OWSViewController {
+         self.collectionView.autoPinEdge(toSuperviewEdge: .bottom)
+         self.collectionView.autoPinEdge(toSuperviewSafeArea: .leading)
+         self.collectionView.autoPinEdge(toSuperviewSafeArea: .trailing)
++#if targetEnvironment(macCatalyst)
++        if #available(iOS 26, *) {
++            // The automatic edge effect style on Mac is "hard", which leaves the header and the
++            // input toolbar without a backdrop over the wallpaper. Use iOS's soft blur.
++            self.collectionView.topEdgeEffect.style = .soft
++            self.collectionView.bottomEdgeEffect.style = .soft
++        }
++#endif
+ 
+         self.collectionView.accessibilityIdentifier = "collectionView"
+ 
+diff --git a/Signal/DeviceTransfer/DeviceTransfer.swift b/Signal/DeviceTransfer/DeviceTransfer.swift
+index 167af0f..0f6cef3 100644
+--- a/Signal/DeviceTransfer/DeviceTransfer.swift
++++ b/Signal/DeviceTransfer/DeviceTransfer.swift
+@@ -6,7 +6,9 @@
+ import CryptoKit
+ import Foundation
+ import SignalServiceKit
++#if canImport(WiFiAware)
+ import WiFiAware
++#endif
+ 
+ ///
+ /// The following service is used to facilitate users in transferring their account from
+@@ -60,6 +62,10 @@ import WiFiAware
+ enum DeviceTransfer {
+ 
+     static func platformSupportsWifiAware() -> Bool {
++        #if !canImport(WiFiAware)
++        // Not available on Mac Catalyst; transfers use Multipeer Connectivity.
++        return false
++        #else
+         if #available(iOS 26.0, *) {
+             if WACapabilities.supportedFeatures.contains(.wifiAware) {
+                 return true
+@@ -71,6 +77,7 @@ enum DeviceTransfer {
+             Logger.info("[DeviceTransfer][WiFiAware] OS version too low to support WifiAware")
+             return false
+         }
++        #endif
+     }
+ 
+     enum Error: Swift.Error {
+diff --git a/Signal/DeviceTransfer/DeviceTransferCoordinator.swift b/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
+index f3c7b87..a17d80c 100644
+--- a/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
++++ b/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
+@@ -104,6 +104,7 @@ public class DeviceTransferCoordinator: Equatable {
+         self.supportsWifiAware = supportsWifiAware
+         self.transferStatusViewModel.supportsWifiAware = supportsWifiAware
+         let factory: DeviceTransfer.ConnectionFactory
++        #if canImport(WiFiAware)
+         if
+             #available(iOS 26.0, *),
+             supportsWifiAware
+@@ -112,6 +113,9 @@ public class DeviceTransferCoordinator: Equatable {
+         } else {
+             factory = MPCDeviceTransferConnectionFactory()
+         }
++        #else
++        factory = MPCDeviceTransferConnectionFactory()
++        #endif
+ 
+         self.incomingDeviceTransferTask = try IncomingDeviceTransferTask(
+             db: db,
+diff --git a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
+index 858c8ef..058b7af 100644
+--- a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
++++ b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
+@@ -3,12 +3,16 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(DeviceDiscoveryUI)
+ import DeviceDiscoveryUI
++#endif
+ import Lottie
+ import SignalServiceKit
+ import SignalUI
+ import SwiftUI
++#if canImport(WiFiAware)
+ import WiFiAware
++#endif
+ 
+ // MARK: - DeviceTransferStatusViewController
+ 
+@@ -219,6 +223,7 @@ struct TransferPairingView: View {
+                 .padding(.horizontal, 8)
+             TutorialStack(isNewDevice: isNewDevice)
+             Spacer()
++            #if canImport(WiFiAware) && canImport(DeviceDiscoveryUI)
+             if !isNewDevice {
+                 DevicePicker(
+                     .wifiAware(
+@@ -254,6 +259,7 @@ struct TransferPairingView: View {
+                         .allowsHitTesting(false) // necessary to let touches pass to DevicePairingView
+                 } fallback: {}
+             }
++            #endif
+             Button(CommonStrings.cancelButton) {
+                 Task {
+                     await viewModel.propmtUserToCancelTransfer()
+diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferConnectionFactory.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferConnectionFactory.swift
+index b7336d4..f27d4d3 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferConnectionFactory.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferConnectionFactory.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import Foundation
+ import SignalServiceKit
+ 
+@@ -19,3 +21,5 @@ struct WADeviceTransferConnectionFactory: DeviceTransfer.ConnectionFactory {
+         return try WADeviceTransferIncomingConnection()
+     }
+ }
++
++#endif
+diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
+index c1cca71..36964fc8 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import Foundation
+ import Network
+ import SignalServiceKit
+@@ -237,3 +239,5 @@ private class AsyncStreamBroadcast<T> {
+         }
+     }
+ }
++
++#endif
+diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
+index 535d7db..2c10cee 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import CryptoKit
+ import Foundation
+ import Network
+@@ -164,3 +166,5 @@ class WADeviceTransferOutgoingConnection: DeviceTransfer.OutgoingConnection {
+     }
+ 
+ }
++
++#endif
+diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
+index e70e6e3..ad8d6a7 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import Foundation
+ import WiFiAware
+ 
+@@ -21,3 +23,5 @@ struct WADeviceTransferPeer: DeviceTransfer.Peer {
+         self.pairedDevice = pairedDevice
+     }
+ }
++
++#endif
+diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
+index 411ceed..22b343b 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import Foundation
+ import Network
+ import SignalServiceKit
+@@ -174,3 +176,5 @@ class WADeviceTransferSession: DeviceTransfer.Session {
+         return info.fileUrl
+     }
+ }
++
++#endif
+diff --git a/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift b/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
+index fcd80e1..d093870 100644
+--- a/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
++++ b/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
+@@ -3,6 +3,8 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //
+ 
++#if canImport(WiFiAware) // Wi-Fi Aware isn't available on Mac Catalyst
++
+ import Foundation
+ import Network
+ import SignalServiceKit
+@@ -140,3 +142,5 @@ extension WAPairedDevice {
+         return self.name ?? self.pairingInfo?.pairingName ?? ""
+     }
+ }
++
++#endif
+diff --git a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
+index e9f4f01..c8d1d15 100644
+--- a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
++++ b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
+@@ -633,6 +633,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+     // MARK: - Helpers
+ 
+     private func getApnRegistrationId() async throws -> RegistrationRequestFactory.ApnRegistrationId? {
++#if targetEnvironment(macCatalyst)
++        // Mac builds can't get an APNs token (and Signal only pushes to its own app), so link
++        // as a manual message fetcher, as for push-less devices below.
++        return nil
++#else
+         do {
+             return try await pushRegistrationManager
+                 .requestPushTokens(forceRotation: false)
+@@ -651,6 +656,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+                 throw error
+             }
+         }
++#endif
+     }
+ 
+     private typealias VerifySecondaryDeviceResponse = Service.VerifySecondaryDeviceResponse
+diff --git a/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift b/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
+index 5547c91..a70ef86 100644
+--- a/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
++++ b/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
+@@ -81,6 +81,7 @@ class OutgoingDeviceRestoreViewModel: ObservableObject {
+             break
+         case .deviceTransfer(let transferUrl):
+             let factory: DeviceTransfer.ConnectionFactory
++            #if canImport(WiFiAware)
+             if
+                 #available(iOS 26.0, *),
+                 provisioningURL.capabilities.contains(.wifiaware),
+@@ -92,6 +93,9 @@ class OutgoingDeviceRestoreViewModel: ObservableObject {
+             } else {
+                 factory = MPCDeviceTransferConnectionFactory()
+             }
++            #else
++            factory = MPCDeviceTransferConnectionFactory()
++            #endif
+ 
+             let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
+                 deviceTransferURL: transferUrl,
+diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
+index f02e5ed..0cb6513 100644
+--- a/Signal/Registration/RegistrationCoordinatorImpl.swift
++++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
+@@ -614,7 +614,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
+                         localFileBackupBookmarkData,
+                         isStale: &isStale,
+                     )
+-                } catch NSFileProviderError.noSuchItem {
++                } catch let error as NSError where error.domain == "NSFileProviderErrorDomain" && error.code == -1005 {
++                    // NSFileProviderError.noSuchItem (the type is unavailable on Mac Catalyst).
+                     throw LocalFileBackupError.unableToAccessLocalFile(.missing)
+                 } catch {
+                     throw OWSAssertionError("Unable to resolve bookmark data: \(error)")
+diff --git a/Signal/src/ViewControllers/AppSettings/Donations/BadgeGiftingConfirmationViewController+ApplePay.swift b/Signal/src/ViewControllers/AppSettings/Donations/BadgeGiftingConfirmationViewController+ApplePay.swift
+index 8f13d62..2de9441 100644
+--- a/Signal/src/ViewControllers/AppSettings/Donations/BadgeGiftingConfirmationViewController+ApplePay.swift
++++ b/Signal/src/ViewControllers/AppSettings/Donations/BadgeGiftingConfirmationViewController+ApplePay.swift
+@@ -26,6 +26,13 @@ extension BadgeGiftingConfirmationViewController {
+ }
+ 
+ extension BadgeGiftingConfirmationViewController: PKPaymentAuthorizationControllerDelegate {
++    #if targetEnvironment(macCatalyst)
++    // Required on Mac Catalyst: the window to present the Apple Pay sheet in.
++    func presentationWindow(for controller: PKPaymentAuthorizationController) -> UIWindow? {
++        view.window
++    }
++    #endif
++
+     func paymentAuthorizationController(
+         _ controller: PKPaymentAuthorizationController,
+         didAuthorizePayment payment: PKPayment,
+diff --git a/Signal/src/ViewControllers/Donations/DonateViewController+PKPaymentAuthorizationControllerDelegate.swift b/Signal/src/ViewControllers/Donations/DonateViewController+PKPaymentAuthorizationControllerDelegate.swift
+index 0529b4a..c5182d2 100644
+--- a/Signal/src/ViewControllers/Donations/DonateViewController+PKPaymentAuthorizationControllerDelegate.swift
++++ b/Signal/src/ViewControllers/Donations/DonateViewController+PKPaymentAuthorizationControllerDelegate.swift
+@@ -7,6 +7,13 @@ import Foundation
+ import PassKit
+ 
+ extension DonateViewController: PKPaymentAuthorizationControllerDelegate {
++    #if targetEnvironment(macCatalyst)
++    // Required on Mac Catalyst: the window to present the Apple Pay sheet in.
++    func presentationWindow(for controller: PKPaymentAuthorizationController) -> UIWindow? {
++        view.window
++    }
++    #endif
++
+     func paymentAuthorizationControllerDidFinish(_ controller: PKPaymentAuthorizationController) {
+         controller.dismiss()
+     }
+diff --git a/Signal/src/ViewControllers/MediaGallery/MediaPageViewController.swift b/Signal/src/ViewControllers/MediaGallery/MediaPageViewController.swift
+index dbd9704..7cdbc69 100644
+--- a/Signal/src/ViewControllers/MediaGallery/MediaPageViewController.swift
++++ b/Signal/src/ViewControllers/MediaGallery/MediaPageViewController.swift
+@@ -145,6 +145,16 @@ class MediaPageViewController: UIPageViewController {
+             overrideUserInterfaceStyle = .dark
+         }
+         view.backgroundColor = .Signal.mediaBackground
++#if targetEnvironment(macCatalyst)
++        if #available(iOS 26, *) {
++            // On Mac the default edge effect of the paging scroll view draws a divider line under
++            // the window's title bar.
++            for scrollView in view.subviews.compactMap({ $0 as? UIScrollView }) {
++                scrollView.topEdgeEffect.isHidden = true
++                scrollView.bottomEdgeEffect.isHidden = true
++            }
++        }
++#endif
+ 
+         mediaInteractiveDismiss.addGestureRecognizer(to: view)
+ 
+diff --git a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
+index 25618b6..40f63bd 100644
+--- a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
++++ b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
+@@ -103,6 +103,7 @@ class CameraCaptureSession: NSObject {
+         audioCaptureSession.automaticallyConfiguresApplicationAudioSession = false
+         audioCaptureSession.usesApplicationAudioSession = true
+ 
++        #if !targetEnvironment(macCatalyst)
+         if #available(iOS 16.0, *) {
+             if avCaptureSession.isMultitaskingCameraAccessSupported {
+                 avCaptureSession.isMultitaskingCameraAccessEnabled = true
+@@ -111,6 +112,7 @@ class CameraCaptureSession: NSObject {
+                 audioCaptureSession.isMultitaskingCameraAccessEnabled = true
+             }
+         }
++        #endif
+ 
+         videoCapture.delegate = self
+     }
+@@ -413,6 +415,14 @@ class CameraCaptureSession: NSObject {
+     }()
+ 
+     private class func availableVideoCaptureDevices(forPosition position: AVCaptureDevice.Position) -> [AVCaptureDevice.DeviceType: AVCaptureDevice] {
++#if targetEnvironment(macCatalyst)
++        // Mac cameras (built in, external or Continuity Camera) have no front or back position.
++        // Treat the default camera as the front wide-angle camera, with no rear camera.
++        guard position == .front, let device = AVCaptureDevice.default(for: .video) else {
++            return [:]
++        }
++        return [.builtInWideAngleCamera: device]
++#else
+         var queryDeviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
+         queryDeviceTypes.append(contentsOf: [.builtInUltraWideCamera, .builtInDualWideCamera, .builtInTripleCamera])
+         let session = AVCaptureDevice.DiscoverySession(deviceTypes: queryDeviceTypes, mediaType: .video, position: position)
+@@ -420,6 +430,7 @@ class CameraCaptureSession: NSObject {
+             deviceMap[device.deviceType] = device
+         }
+         return deviceMap
++#endif
+     }
+ 
+     private func availableVideoCaptureDeviceTypes(forPosition position: AVCaptureDevice.Position) -> [AVCaptureDevice.DeviceType] {
+@@ -506,14 +517,23 @@ class CameraCaptureSession: NSObject {
+         return devices[.builtInDualCamera] ?? devices[.builtInWideAngleCamera]
+     }
+ 
++#if targetEnvironment(macCatalyst)
++    private(set) var desiredPosition: AVCaptureDevice.Position = .front
++#else
+     private(set) var desiredPosition: AVCaptureDevice.Position = .back
++#endif
+ 
+     func switchCameraPosition() -> Promise<Void> {
+         AssertIsOnMainThread()
+         let newPosition: AVCaptureDevice.Position
+         switch desiredPosition {
+         case .front:
++#if targetEnvironment(macCatalyst)
++            // A Mac camera has no rear camera to switch to.
++            newPosition = .front
++#else
+             newPosition = .back
++#endif
+ 
+         case .back, .unspecified:
+             newPosition = .front
+@@ -788,6 +808,13 @@ class CameraCaptureSession: NSObject {
+         videoRecordingState = .started
+         delegate.cameraCaptureSessionWillStartVideoRecording(self)
+ 
++#if targetEnvironment(macCatalyst)
++        // Record the Mac camera's whole frame rather than cropping it to the screen's shape.
++        let videoAspectRatio: CGFloat = videoCaptureDevice.map { device in
++            let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
++            return CGFloat(min(dimensions.width, dimensions.height)) / CGFloat(max(dimensions.width, dimensions.height))
++        } ?? 9 / 16
++#else
+         let screenAspectRatio: CGFloat
+         if screenSize.width > screenSize.height {
+             screenAspectRatio = screenSize.height / screenSize.width
+@@ -795,6 +822,7 @@ class CameraCaptureSession: NSObject {
+             screenAspectRatio = screenSize.width / screenSize.height
+         }
+         let videoAspectRatio = screenAspectRatio.clamp(9 / 16, 3 / 4)
++#endif
+         let videoCapture = videoCapture
+         sessionQueue.async {
+             self.setTorchMode(self.flashMode.toTorchMode)
+@@ -1057,7 +1085,13 @@ class CapturePreviewView: UIView {
+             // helpful for debugging layout on simulator which has no real capture device
+             previewLayer.backgroundColor = UIColor.green.withAlphaComponent(0.4).cgColor
+         }
++#if targetEnvironment(macCatalyst)
++        // Show (and so capture) the Mac camera's whole landscape frame; photos are cropped to
++        // what the preview shows.
++        contentMode = .scaleAspectFit
++#else
+         contentMode = .scaleAspectFill
++#endif
+     }
+ 
+     @available(*, unavailable, message: "Use init(session:) instead")
+diff --git a/Signal/src/ViewControllers/Photos/MediaControls.swift b/Signal/src/ViewControllers/Photos/MediaControls.swift
+index e2645c0..8abe9a4 100644
+--- a/Signal/src/ViewControllers/Photos/MediaControls.swift
++++ b/Signal/src/ViewControllers/Photos/MediaControls.swift
+@@ -1548,8 +1548,10 @@ final class CameraBottomBar: UIView {
+ 
+     func setIsRecordingVideo(_ isRecording: Bool, animated: Bool) {
+         _isRecordingVideo = isRecording
++#if !targetEnvironment(macCatalyst)
+         photoLibraryButton.setIsHidden(isRecording, animated: animated)
+         switchCameraButton.setIsHidden(isRecording, animated: animated)
++#endif
+     }
+ 
+     private var _isFrontCameraActive = false
+@@ -1593,6 +1595,12 @@ final class CameraBottomBar: UIView {
+             switchCameraButton.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
+             switchCameraButton.centerYAnchor.constraint(equalTo: captureControl.centerYAnchor),
+         ])
++
++#if targetEnvironment(macCatalyst)
++        // A Mac has one camera, and no photo library option (photos are sent as files).
++        photoLibraryButton.isHidden = true
++        switchCameraButton.isHidden = true
++#endif
+     }
+ 
+     required init?(coder: NSCoder) {
+@@ -1619,8 +1627,10 @@ final class CameraSideBar: UIView {
+ 
+     func setIsRecordingVideo(_ isRecording: Bool, animated: Bool) {
+         _isRecordingVideo = isRecording
++#if !targetEnvironment(macCatalyst)
+         cameraControlsContainerView.setIsHidden(isRecording, animated: animated)
+         photoLibraryButton.setIsHidden(isRecording, animated: animated)
++#endif
+     }
+ 
+     private var _isFrontCameraActive = false
+@@ -1688,6 +1698,13 @@ final class CameraSideBar: UIView {
+             ),
+             photoLibraryButton.bottomAnchor.constraint(lessThanOrEqualTo: layoutMarginsGuide.bottomAnchor),
+         ])
++
++#if targetEnvironment(macCatalyst)
++        // Only the shutter on Mac: no photo library option (photos are sent as files), and no
++        // capture mode, flash or switch camera buttons.
++        cameraControlsContainerView.isHidden = true
++        photoLibraryButton.isHidden = true
++#endif
+     }
+ 
+     required init?(coder: NSCoder) {
+diff --git a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
+index 1f45786..f917584 100644
+--- a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
++++ b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
+@@ -627,11 +627,19 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
+         // Use this, instead of `self.view`, to position all UI elements.
+         let topLevelContentContainer = view!
+ 
++#if targetEnvironment(macCatalyst)
++        // Mac cameras are landscape: fix content view at the camera's 16:9, so it fills the window.
++        constraints.append(contentView.heightAnchor.constraint(
++            equalTo: contentView.widthAnchor,
++            multiplier: 9 / 16,
++        ))
++#else
+         // Fix content view at 9:16 aspect ratio.
+         constraints.append(contentView.heightAnchor.constraint(
+             equalTo: contentView.widthAnchor,
+             multiplier: 16 / 9,
+         ))
++#endif
+ 
+         // Content view is centered in view controller's view using "aspect fit" logic.
+         constraints.append(contentsOf: [
+diff --git a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
+index b0a5057..a0c0e0a 100644
+--- a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
++++ b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
+@@ -724,7 +724,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
+         var isStale = false
+         do {
+             resolvedURL = try securityScopedBookmarkAccess.urlForBookmarkData(bookmarkData, isStale: &isStale)
+-        } catch NSFileProviderError.noSuchItem {
++        } catch let error as NSError where error.domain == "NSFileProviderErrorDomain" && error.code == -1005 {
++            // NSFileProviderError.noSuchItem, matched by domain/code because the type is
++            // unavailable on Mac Catalyst.
+             throw LocalFileBackupError.unableToAccessLocalFile(.missing)
+         } catch {
+             logger.error("failedToResolveBookmark: \(error)")
+diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
+index 3d441d1..b85c3dc 100644
+--- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
++++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
+@@ -4989,7 +4989,8 @@ public class GRDBSchemaMigrator {
+ 
+         migrator.registerMigration(.dropTSAttachment) { tx in
+             // Delete the legacy attachments folder, which is hopefully already
+-            // deleted.
++            // deleted. (Mac builds have no app group, and never had that folder.)
++#if !targetEnvironment(macCatalyst)
+             if
+                 let containerURL = FileManager.default.containerURL(
+                     forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
+@@ -4998,6 +4999,7 @@ public class GRDBSchemaMigrator {
+                 let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
+                 try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
+             }
++#endif
+ 
+             try tx.database.drop(table: "TSAttachmentMigration")
+             try tx.database.drop(table: "model_TSAttachment")
+diff --git a/SignalServiceKit/Storage/SSKKeychainStorage.swift b/SignalServiceKit/Storage/SSKKeychainStorage.swift
+index 5d78fe2..6aad8df 100644
+--- a/SignalServiceKit/Storage/SSKKeychainStorage.swift
++++ b/SignalServiceKit/Storage/SSKKeychainStorage.swift
+@@ -52,6 +52,9 @@ public class KeychainStorageImpl: KeychainStorage {
+     }
+ 
+     public func dataValue(service: String, key: String) throws -> Data {
++#if targetEnvironment(macCatalyst)
++        return try LoginKeychain.dataValue(service: normalizeService(service), key: key)
++#else
+         var query = self.baseQuery(service: service, key: key)
+         query[kSecMatchLimit as String] = kSecMatchLimitOne
+         query[kSecReturnData as String] = true
+@@ -62,9 +65,14 @@ public class KeychainStorageImpl: KeychainStorage {
+             throw KeychainError(status)
+         }
+         return item as! Data
++#endif
+     }
+ 
+     public func setDataValue(_ dataValue: Data, service: String, key: String) throws {
++#if targetEnvironment(macCatalyst)
++        Logger.info("Setting \(service)/\(key)")
++        return try LoginKeychain.setDataValue(dataValue, service: normalizeService(service), key: key)
++#else
+         let query = self.baseQuery(service: service, key: key)
+         let setValueQuery: [String: Any] = [
+             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+@@ -99,10 +107,14 @@ public class KeychainStorageImpl: KeychainStorage {
+                 throw KeychainError(status)
+             }
+         }
++#endif
+     }
+ 
+     public func removeValue(service: String, key: String) throws {
+         Logger.info("Removing \(service)/\(key)")
++#if targetEnvironment(macCatalyst)
++        return try LoginKeychain.removeValue(service: normalizeService(service), key: key)
++#else
+         let query = self.baseQuery(service: service, key: key)
+         let status = SecItemDelete(query as CFDictionary)
+         switch status {
+@@ -111,5 +123,111 @@ public class KeychainStorageImpl: KeychainStorage {
+         default:
+             throw KeychainError(status)
+         }
++#endif
+     }
+ }
++
++#if targetEnvironment(macCatalyst)
++
++// MARK: -
++
++/// Generic passwords in the user's login keychain, for Mac Catalyst builds signed without a
++/// provisioning profile. In Catalyst apps the SecItem API always uses the data protection
++/// keychain (even with kSecUseDataProtectionKeychain = false), which fails with
++/// errSecMissingEntitlement without a keychain-access-groups entitlement, and that entitlement
++/// can't be granted without a profile. The legacy SecKeychain API still reaches the login
++/// keychain; it's hidden from the Catalyst SDK, so it's looked up at runtime.
++private enum LoginKeychain {
++    private typealias AddFn = @convention(c) (
++        CFTypeRef?, UInt32, UnsafePointer<UInt8>, UInt32, UnsafePointer<UInt8>, UInt32, UnsafeRawPointer?,
++        UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?
++    ) -> OSStatus
++    private typealias FindFn = @convention(c) (
++        CFTypeRef?, UInt32, UnsafePointer<UInt8>, UInt32, UnsafePointer<UInt8>,
++        UnsafeMutablePointer<UInt32>?, UnsafeMutablePointer<UnsafeMutableRawPointer?>?,
++        UnsafeMutablePointer<Unmanaged<CFTypeRef>?>?
++    ) -> OSStatus
++    private typealias ModifyFn = @convention(c) (CFTypeRef, UnsafeRawPointer?, UInt32, UnsafeRawPointer?) -> OSStatus
++    private typealias DeleteFn = @convention(c) (CFTypeRef) -> OSStatus
++    private typealias FreeContentFn = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?) -> OSStatus
++
++    private struct Functions {
++        let add: AddFn
++        let find: FindFn
++        let modify: ModifyFn
++        let delete: DeleteFn
++        let freeContent: FreeContentFn
++    }
++
++    private static let functions: Functions = {
++        let handle = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_NOW)
++        func load<T>(_ name: String, as type: T.Type) -> T {
++            guard let symbol = dlsym(handle, name) else {
++                owsFail("Missing \(name)")
++            }
++            return unsafeBitCast(symbol, to: type)
++        }
++        return Functions(
++            add: load("SecKeychainAddGenericPassword", as: AddFn.self),
++            find: load("SecKeychainFindGenericPassword", as: FindFn.self),
++            modify: load("SecKeychainItemModifyAttributesAndData", as: ModifyFn.self),
++            delete: load("SecKeychainItemDelete", as: DeleteFn.self),
++            freeContent: load("SecKeychainItemFreeContent", as: FreeContentFn.self),
++        )
++    }()
++
++    private static func find(service: String, key: String) throws -> (item: CFTypeRef, data: Data) {
++        let service = Array(service.utf8), key = Array(key.utf8)
++        var length: UInt32 = 0
++        var bytes: UnsafeMutableRawPointer?
++        var item: Unmanaged<CFTypeRef>?
++        let status = functions.find(
++            nil, UInt32(service.count), service, UInt32(key.count), key,
++            &length, &bytes, &item,
++        )
++        guard status == errSecSuccess, let item else {
++            throw KeychainError(status)
++        }
++        var data = Data()
++        if let bytes {
++            data = Data(bytes: bytes, count: Int(length))
++            _ = functions.freeContent(nil, bytes)
++        }
++        return (item.takeRetainedValue(), data)
++    }
++
++    static func dataValue(service: String, key: String) throws -> Data {
++        return try find(service: service, key: key).data
++    }
++
++    static func setDataValue(_ dataValue: Data, service: String, key: String) throws {
++        let status: OSStatus
++        do {
++            let item = try find(service: service, key: key).item
++            status = dataValue.withUnsafeBytes { functions.modify(item, nil, UInt32($0.count), $0.baseAddress) }
++        } catch KeychainError.notFound {
++            let service = Array(service.utf8), key = Array(key.utf8)
++            status = dataValue.withUnsafeBytes {
++                functions.add(nil, UInt32(service.count), service, UInt32(key.count), key, UInt32($0.count), $0.baseAddress, nil)
++            }
++        }
++        guard status == errSecSuccess else {
++            throw KeychainError(status)
++        }
++    }
++
++    static func removeValue(service: String, key: String) throws {
++        let item: CFTypeRef
++        do {
++            item = try find(service: service, key: key).item
++        } catch KeychainError.notFound {
++            return
++        }
++        let status = functions.delete(item)
++        guard status == errSecSuccess || status == errSecItemNotFound else {
++            throw KeychainError(status)
++        }
++    }
++}
++
++#endif
+diff --git a/SignalUI/AV/AudioSession.swift b/SignalUI/AV/AudioSession.swift
+index 0a0783a..d4ed3e2 100644
+--- a/SignalUI/AV/AudioSession.swift
++++ b/SignalUI/AV/AudioSession.swift
+@@ -194,6 +194,11 @@ public class AudioSession: NSObject {
+                 ],
+             )
+             try avAudioSession.setAllowHapticsAndSystemSoundsDuringRecording(true)
++#if targetEnvironment(macCatalyst)
++            // On Mac, AVAudioRecorder doesn't activate the session as it does on iOS, and an
++            // inactive session has no input channels, so recording fails to start.
++            try avAudioSession.setActive(true)
++#endif
+         } else if aggregateBehaviors.contains(.audioMessagePlayback) {
+             if self.device.proximityState {
+                 try setCategory(.playAndRecord)
+diff --git a/SignalUI/Media/ZoomableMediaView.swift b/SignalUI/Media/ZoomableMediaView.swift
+index 4927fe6..721f1a1 100644
+--- a/SignalUI/Media/ZoomableMediaView.swift
++++ b/SignalUI/Media/ZoomableMediaView.swift
+@@ -26,6 +26,13 @@ public class ZoomableMediaView: UIScrollView {
+         showsVerticalScrollIndicator = false
+         showsHorizontalScrollIndicator = false
+         decelerationRate = .fast
++#if targetEnvironment(macCatalyst)
++        if #available(iOS 26, *) {
++            // On Mac the default edge effect draws a divider line under the window's title bar.
++            topEdgeEffect.isHidden = true
++            bottomEdgeEffect.isHidden = true
++        }
++#endif
+         translatesAutoresizingMaskIntoConstraints = false
+ 
+         addSubview(mediaView)
+diff --git a/SignalUI/RecipientPickers/ContactAccessLimitedReminderView.swift b/SignalUI/RecipientPickers/ContactAccessLimitedReminderView.swift
+index 7a61384..9a425d6 100644
+--- a/SignalUI/RecipientPickers/ContactAccessLimitedReminderView.swift
++++ b/SignalUI/RecipientPickers/ContactAccessLimitedReminderView.swift
+@@ -15,6 +15,17 @@ struct ContactAccessLimitedReminderView: View {
+ 
+     @State private var displayPicker = false
+     var body: some View {
++        // The limited-access contact picker isn't available on Mac Catalyst.
++        #if targetEnvironment(macCatalyst)
++        content
++        #else
++        content.contactAccessPicker(isPresented: $displayPicker) { _ in
++            completion()
++        }
++        #endif
++    }
++
++    private var content: some View {
+         HStack {
+             Text(
+                 OWSLocalizedString(
+@@ -65,8 +76,5 @@ struct ContactAccessLimitedReminderView: View {
+                 }
+             }
+         }
+-        .contactAccessPicker(isPresented: $displayPicker) { _ in
+-            completion()
+-        }
+     }
+ }
+diff --git a/SignalUI/ViewControllers/ScanQRCodeViewController.swift b/SignalUI/ViewControllers/ScanQRCodeViewController.swift
+index f9e38ed..08d44db 100644
+--- a/SignalUI/ViewControllers/ScanQRCodeViewController.swift
++++ b/SignalUI/ViewControllers/ScanQRCodeViewController.swift
+@@ -743,11 +743,13 @@ private class QRCodeScanner {
+         self.prefersFrontFacingCamera = prefersFrontFacingCamera
+         self.output = QRCodeScanOutput(scannerDelegate: scannerDelegate)
+ 
++        #if !targetEnvironment(macCatalyst)
+         if #available(iOS 16.0, *) {
+             if session.isMultitaskingCameraAccessSupported {
+                 session.isMultitaskingCameraAccessEnabled = true
+             }
+         }
++        #endif
+     }
+ 
+     deinit {

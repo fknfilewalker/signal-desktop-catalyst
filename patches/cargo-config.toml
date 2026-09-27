@@ -1,0 +1,9 @@
+# Local builds only: boring-sys with a Mac Catalyst entry in its Apple CMake table.
+[patch."https://github.com/signalapp/boring"]
+boring = { path = "boring/boring" }
+boring-sys = { path = "boring/boring-sys" }
+tokio-boring = { path = "boring/tokio-boring" }
+
+[patch.crates-io]
+boring = { path = "boring/boring" }
+boring-sys = { path = "boring/boring-sys" }

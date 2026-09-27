@@ -1,0 +1,19 @@
+// Build settings for the Mac Catalyst build of Signal-iOS (script/build-catalyst.sh).
+// Passed with -xcconfig, so they apply on top of every target's own settings, including Pods,
+// without modifying the Signal-iOS submodule. SIGNAL_MAC_DEPS points at build/deps.
+
+SUPPORTS_MACCATALYST = YES
+ARCHS = arm64
+
+// Native libraries built for aarch64-apple-ios-macabi by script/build-catalyst-deps.sh.
+LIBSIGNAL_FFI_LIB_TO_LINK = $(SIGNAL_MAC_DEPS)/libsignal/target/aarch64-apple-ios-macabi/release/libsignal_ffi.a
+LIBRINGRTC_IF_NEEDED = $(SIGNAL_MAC_DEPS)/ringrtc/out/release/libringrtc/aarch64-apple-ios-macabi/libringrtc.a
+LIBMOBILECOIN_LIB_IF_NEEDED = $(SIGNAL_MAC_DEPS)/libmobilecoin/libmobilecoin/target/aarch64-apple-ios-macabi/mobile-release/libmobilecoin.a
+
+// The Pods only copy WebRTC's iOS slices; use the Catalyst framework instead. CatalystStubs holds
+// link-time stand-ins for iOS-only frameworks the project links explicitly.
+FRAMEWORK_SEARCH_PATHS = $(inherited) $(SIGNAL_MAC_DEPS)/webrtc-catalyst $(SIGNAL_MAC_CONFIG)/CatalystStubs
+OTHER_LDFLAGS = $(inherited) -weak_framework DeviceDiscoveryUI
+
+// Report every Swift error in a module per build, not just the first failing batch.
+OTHER_SWIFT_FLAGS = $(inherited) -continue-building-after-errors

@@ -1,0 +1,3 @@
+[submodule "Signal-iOS"]
+	path = Signal-iOS
+	url = https://github.com/signalapp/Signal-iOS.git

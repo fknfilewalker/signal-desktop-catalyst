@@ -1,0 +1,23 @@
+diff --git a/boring-sys/build/main.rs b/boring-sys/build/main.rs
+index ae6df996..48ba5144 100644
+--- a/boring-sys/build/main.rs
++++ b/boring-sys/build/main.rs
+@@ -94,6 +94,18 @@ const CMAKE_PARAMS_APPLE: &[(&str, &[(&str, &str)])] = &[
+             ("CMAKE_MACOSX_BUNDLE", "OFF"),
+         ],
+     ),
++    // Mac Catalyst (added for building Signal-iOS as a Mac app)
++    (
++        "aarch64-apple-ios-macabi",
++        &[
++            ("CMAKE_OSX_ARCHITECTURES", "arm64"),
++            ("CMAKE_OSX_SYSROOT", "macosx"),
++            ("CMAKE_MACOSX_BUNDLE", "OFF"),
++            // C flags carry the macabi --target, but assembly doesn't; without this the .S
++            // objects are built for iOS and the Catalyst link fails.
++            ("CMAKE_ASM_COMPILER_TARGET", "arm64-apple-ios14.0-macabi"),
++        ],
++    ),
+     // macOS
+     (
+         "aarch64-apple-darwin",

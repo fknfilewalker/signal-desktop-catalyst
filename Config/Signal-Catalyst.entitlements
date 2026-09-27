@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Mac Catalyst entitlements. The app sandbox is essential: without it, Signal's "Library" and
+  "Documents" resolve to the user's real ~/Library and ~/Documents, and its migrations and cleanup
+  jobs delete files there that they don't recognize. Sandboxed, they're a private container.
+  No app group or keychain access group: those need a provisioning profile, and the patch keeps
+  Signal's data in this container instead.
+-->
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.addressbook</key>
+	<true/>
+	<key>com.apple.security.personal-information.photos-library</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.downloads.read-write</key>
+	<true/>
+</dict>
+</plist>
