@@ -117,6 +117,21 @@ index b840bbc..c792dca 100644
          self.window = lifecycleManager.connectUI(in: windowScene)
  
          // These arrive in the connection options rather than via the callbacks
+diff --git a/Signal/ConversationView/CVViewState.swift b/Signal/ConversationView/CVViewState.swift
+index 71ab194..2525ddb 100644
+--- a/Signal/ConversationView/CVViewState.swift
++++ b/Signal/ConversationView/CVViewState.swift
+@@ -120,6 +120,10 @@ public class CVViewState: NSObject {
+     public let collectionViewContextMenuGestureRecognizer = UILongPressGestureRecognizer()
+     public var collectionViewContextMenuSecondaryClickRecognizer = UITapGestureRecognizer()
+     public let collectionViewPanGestureRecognizer = UIPanGestureRecognizer()
++#if targetEnvironment(macCatalyst)
++    public var collectionViewSecondaryClickMenuDelegate: UIContextMenuInteractionDelegate?
++    public var isPresentingContextMenuFromSecondaryClick = false
++#endif
+ 
+     public var collectionViewActiveContextMenuInteraction: ChatHistoryContextMenuInteraction?
+     public var longPressHandler: CVLongPressHandler?
 diff --git a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift b/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
 index 854e42c..4e6b0af 100644
 --- a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
@@ -451,6 +466,116 @@ index f136aef..4309b89 100644
 +}
 +
 +#endif
+diff --git a/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift b/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
+index e7ca39d..c402f94 100644
+--- a/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
++++ b/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
+@@ -33,6 +33,14 @@ extension ConversationViewController: UIGestureRecognizerDelegate {
+         collectionViewContextMenuSecondaryClickRecognizer.delegate = self
+         collectionView.addGestureRecognizer(collectionViewContextMenuSecondaryClickRecognizer)
+ 
++#if targetEnvironment(macCatalyst)
++        // The Mac reports right-click and control-click as context menu requests,
++        // not as secondary-button taps.
++        let secondaryClickMenuDelegate = CVSecondaryClickMenuDelegate(conversationViewController: self)
++        viewState.collectionViewSecondaryClickMenuDelegate = secondaryClickMenuDelegate
++        collectionView.addInteraction(UIContextMenuInteraction(delegate: secondaryClickMenuDelegate))
++#endif
++
+         collectionViewPanGestureRecognizer.addTarget(self, action: #selector(handlePanGesture))
+         collectionViewPanGestureRecognizer.delegate = self
+         collectionView.addGestureRecognizer(collectionViewPanGestureRecognizer)
+@@ -219,6 +227,28 @@ extension ConversationViewController {
+         longPressHandler.startContextMenuGesture(cell: cell)
+     }
+ 
++#if targetEnvironment(macCatalyst)
++    fileprivate func handleSecondaryClick(atWindowLocation windowLocation: CGPoint) {
++        guard !isShowingSelectionUI, !isPresentingContextMenu else {
++            return
++        }
++        let sender = CVFixedLocationGestureRecognizer(windowLocation: windowLocation)
++        guard
++            let cell = findCell(forGesture: sender),
++            let longPressHandler = cell.findLongPressHandler(
++                sender: sender,
++                componentDelegate: self,
++            )
++        else {
++            return
++        }
++
++        viewState.isPresentingContextMenuFromSecondaryClick = true
++        longPressHandler.startContextMenuGesture(cell: cell)
++        viewState.isPresentingContextMenuFromSecondaryClick = false
++    }
++#endif
++
+     private func findLongPressHandler(sender: UILongPressGestureRecognizer) -> CVLongPressHandler? {
+         guard let cell = findCell(forGesture: sender) else {
+             return nil
+@@ -520,3 +550,45 @@ public class CVPanHandler {
+         )
+     }
+ }
++
++#if targetEnvironment(macCatalyst)
++
++/// Opens a message's context menu on right-click, in place of a system menu.
++private class CVSecondaryClickMenuDelegate: NSObject, UIContextMenuInteractionDelegate {
++    private weak var conversationViewController: ConversationViewController?
++
++    init(conversationViewController: ConversationViewController) {
++        self.conversationViewController = conversationViewController
++    }
++
++    func contextMenuInteraction(
++        _ interaction: UIContextMenuInteraction,
++        configurationForMenuAtLocation location: CGPoint,
++    ) -> UIContextMenuConfiguration? {
++        let windowLocation = interaction.location(in: nil)
++        DispatchQueue.main.async { [weak conversationViewController] in
++            conversationViewController?.handleSecondaryClick(atWindowLocation: windowLocation)
++        }
++        return nil
++    }
++}
++
++/// Reports a fixed location, so the cell and component lookups written for
++/// gestures can find what was clicked.
++private class CVFixedLocationGestureRecognizer: UIGestureRecognizer {
++    private let windowLocation: CGPoint
++
++    init(windowLocation: CGPoint) {
++        self.windowLocation = windowLocation
++        super.init(target: nil, action: nil)
++    }
++
++    override func location(in view: UIView?) -> CGPoint {
++        guard let view else {
++            return windowLocation
++        }
++        return view.convert(windowLocation, from: nil)
++    }
++}
++
++#endif
+diff --git a/Signal/ConversationView/ConversationViewController+MessageActions.swift b/Signal/ConversationView/ConversationViewController+MessageActions.swift
+index c7f5d92..decf478 100644
+--- a/Signal/ConversationView/ConversationViewController+MessageActions.swift
++++ b/Signal/ConversationView/ConversationViewController+MessageActions.swift
+@@ -23,6 +23,11 @@ extension ConversationViewController {
+         if collectionViewContextMenuSecondaryClickRecognizer.state == .ended {
+             presentImmediately = true
+         }
++#if targetEnvironment(macCatalyst)
++        if viewState.isPresentingContextMenuFromSecondaryClick {
++            presentImmediately = true
++        }
++#endif
+         interaction.initiateContextMenuGesture(locationInView: screenPoint, presentImmediately: presentImmediately)
+     }
+ 
 diff --git a/Signal/ConversationView/ConversationViewController.swift b/Signal/ConversationView/ConversationViewController.swift
 index f755644..7218fd2 100644
 --- a/Signal/ConversationView/ConversationViewController.swift
