@@ -22,7 +22,7 @@ index 44e14af..a3175f4 100644
          _ application: UIApplication,
          didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
 diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
-index 9fc6eff..75e6901 100644
+index 78433ec..54c603d 100644
 --- a/Signal/AppLaunch/AppLifecycleManager.swift
 +++ b/Signal/AppLaunch/AppLifecycleManager.swift
 @@ -96,9 +96,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
@@ -39,7 +39,7 @@ index 9fc6eff..75e6901 100644
  
          clearAppropriateNotificationsAndRestoreBadgeCount()
  
-@@ -920,9 +924,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+@@ -921,9 +925,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
          // Fetch messages as soon as possible after launching. In particular, when
          // launching from the background, without this, we end up waiting some extra
          // seconds before receiving an actionable push notification.
@@ -349,7 +349,7 @@ index 7ed7513..01fefd0 100644
      }
  }
 diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-index ddf2476..5feb5b3 100644
+index 3881a23..f238fb3 100644
 --- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 +++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 @@ -805,6 +805,47 @@ extension ConversationViewController: UIDocumentPickerDelegate {
@@ -812,10 +812,10 @@ index 2b6c025..e245273 100644
 +
 +#endif
 diff --git a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-index 17e64cf..8444451 100644
+index 8392bae..818962a 100644
 --- a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
 +++ b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-@@ -679,6 +679,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -668,6 +668,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
      // MARK: - Helpers
  
      private func getApnRegistrationId() async throws -> RegistrationRequestFactory.ApnRegistrationId? {
@@ -827,7 +827,7 @@ index 17e64cf..8444451 100644
          do {
              return try await pushRegistrationManager
                  .requestPushTokens(forceRotation: false)
-@@ -697,6 +702,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -686,6 +691,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
                  throw error
              }
          }
@@ -858,10 +858,10 @@ index a82ff5e..ff64e52 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index b1f385a..7953ceb 100644
+index 6c09e61..94f6720 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
-@@ -588,7 +588,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
+@@ -629,7 +629,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                          localFileBackupBookmarkData,
                          isStale: &isStale,
                      )
@@ -1085,7 +1085,7 @@ index e2645c0..8abe9a4 100644
  
      required init?(coder: NSCoder) {
 diff --git a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
-index 1f45786..f917584 100644
+index dbf7c58..8dd61dc 100644
 --- a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
 +++ b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
 @@ -627,11 +627,19 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
@@ -1109,10 +1109,10 @@ index 1f45786..f917584 100644
          // Content view is centered in view controller's view using "aspect fit" logic.
          constraints.append(contentsOf: [
 diff --git a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-index 39097e3..4e7cf81 100644
+index 30f318f..281d937 100644
 --- a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
 +++ b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-@@ -741,7 +741,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
+@@ -786,7 +786,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
          var isStale = false
          do {
              resolvedURL = try securityScopedBookmarkAccess.urlForBookmarkData(bookmarkData, isStale: &isStale)
@@ -1124,10 +1124,10 @@ index 39097e3..4e7cf81 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index 1d83f6a..90619bd 100644
+index 77c8075..709a3c6 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -4992,7 +4992,8 @@ public class GRDBSchemaMigrator {
+@@ -4998,7 +4998,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1137,7 +1137,7 @@ index 1d83f6a..90619bd 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5001,6 +5002,7 @@ public class GRDBSchemaMigrator {
+@@ -5007,6 +5008,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }

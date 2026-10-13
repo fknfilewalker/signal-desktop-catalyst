@@ -20,13 +20,18 @@ if ! command -v cargo >/dev/null && [ -d "$(brew --prefix rustup 2>/dev/null)/bi
 fi
 
 # Versions pinned by Signal-iOS (Podfile / Podfile.lock).
-LIBSIGNAL_TAG=v0.103.1
-RINGRTC_TAG=v2.72.0
+LIBSIGNAL_TAG=v0.105.0
+RINGRTC_TAG=v2.72.1
 # Signal's LibMobileCoin 6.0.2 artifacts have no public source tag; v6.1.0's C API is identical.
 LIBMOBILECOIN_TAG=v6.1.0
 
-clone() { # url tag dir
-  [ -d "$3/.git" ] || git clone --depth 1 --branch "$2" "$1" "$3"
+clone() { # url tag dir; moves an existing checkout to the tag when Signal-iOS pins a new one
+  if [ ! -d "$3/.git" ]; then
+    git clone --depth 1 --branch "$2" "$1" "$3"
+  elif [ "$(git -C "$3" rev-parse HEAD)" != "$(git -C "$3" rev-parse -q --verify "refs/tags/$2^{commit}" || true)" ]; then
+    git -C "$3" fetch --depth 1 origin tag "$2"
+    git -C "$3" checkout -f -q "$2"
+  fi
 }
 
 # --- libsignal ---------------------------------------------------------------------------------
@@ -46,8 +51,15 @@ cp "$ROOT/patches/cargo-config.toml" "$DEPS/.cargo/config.toml"
 clone https://github.com/signalapp/ringrtc.git "$RINGRTC_TAG" "$DEPS/ringrtc"
 [ -d "$DEPS/depot_tools" ] || git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$DEPS/depot_tools"
 export PATH="$DEPS/depot_tools:$PATH" DEPOT_TOOLS_UPDATE=0
-[ -d "$DEPS/ringrtc/src/webrtc/src/tools_webrtc" ] || (cd "$DEPS/ringrtc" && bin/prepare-workspace ios)
+# (Re)sync WebRTC when RingRTC's pinned version differs from the last checkout.
+WEBRTC_VERSION="$(sed -n 's/^webrtc.version=//p' "$DEPS/ringrtc/config/version.properties")"
+grep -qx "CONFIGURED_WEBRTC_VERSION=$WEBRTC_VERSION" "$DEPS/ringrtc/out/webrtc-version.env" 2>/dev/null ||
+  (cd "$DEPS/ringrtc" && bin/prepare-workspace ios)
 WEBRTC_SRC="$DEPS/ringrtc/src/webrtc/src"
+# WebRTC includes RingRTC's FFI headers as ringrtc/rffi/api. RingRTC's env.sh links them, but only
+# when WebRTC is already checked out, and an older checkout can leave a real directory there.
+[ -L "$WEBRTC_SRC/ringrtc/rffi/api" ] || rm -rf "$WEBRTC_SRC/ringrtc/rffi/api"
+ln -sfn "$DEPS/ringrtc/src/rust/src/webrtc_include" "$WEBRTC_SRC/ringrtc/rffi/api"
 # Same GN args as RingRTC's bin/build-ios, for the Catalyst environment. use_lld=false: Chromium's
 # bundled lld can't read the newest macOS SDK's .tbd stubs, so link with Apple's ld.
 (cd "$WEBRTC_SRC" && ./tools_webrtc/ios/build_ios_libs.py -o out/catalyst --build_config release \
