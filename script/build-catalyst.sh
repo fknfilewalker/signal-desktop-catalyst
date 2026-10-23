@@ -21,10 +21,15 @@ XCFW_DIR="$ROOT/build/DerivedData-Catalyst/Build/Products/$CONFIG-maccatalyst/XC
 mkdir -p "$XCFW_DIR"
 rm -rf "$XCFW_DIR/WebRTC.framework"
 cp -R "$DEPS/webrtc-catalyst/WebRTC.framework" "$XCFW_DIR/"
+# Targets that link a workspace package (blurhash) look for its product under the project's
+# default SDK (iphoneos) instead of the Catalyst products directory it's built into.
+ln -sfn "$CONFIG-maccatalyst" "$ROOT/build/DerivedData-Catalyst/Build/Products/$CONFIG-iphoneos"
 
 cd "$ROOT/Signal-iOS"
 # No -destination: xcodebuild checks destinations against the project file, which doesn't enable
 # Catalyst. The macOS SDK with the iosmac variant selects Mac Catalyst without editing it.
+# Xcode 27.1 applies the scheme's test coverage setting to builds too; Swift packages then fail to
+# link (undefined ___llvm_profile_runtime), so turn it off. (-enableCodeCoverage only works for tests.)
 xcodebuild \
   -workspace Signal.xcworkspace \
   -scheme Signal \
@@ -43,6 +48,8 @@ xcodebuild \
   DEVELOPMENT_TEAM= \
   PROVISIONING_PROFILE_SPECIFIER= \
   ENABLE_HARDENED_RUNTIME=NO \
+  CLANG_COVERAGE_MAPPING=NO \
+  CLANG_ENABLE_CODE_COVERAGE=NO \
   build
 
 # The share and notification extensions exist to share Signal's app group with the main app.

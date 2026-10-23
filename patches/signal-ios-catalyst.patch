@@ -22,10 +22,10 @@ index 44e14af..a3175f4 100644
          _ application: UIApplication,
          didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
 diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
-index 78433ec..54c603d 100644
+index 0112fa4..3845e6f 100644
 --- a/Signal/AppLaunch/AppLifecycleManager.swift
 +++ b/Signal/AppLaunch/AppLifecycleManager.swift
-@@ -96,9 +96,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+@@ -111,9 +111,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
              return
          }
  
@@ -39,7 +39,7 @@ index 78433ec..54c603d 100644
  
          clearAppropriateNotificationsAndRestoreBadgeCount()
  
-@@ -921,9 +925,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+@@ -946,9 +950,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
          // Fetch messages as soon as possible after launching. In particular, when
          // launching from the background, without this, we end up waiting some extra
          // seconds before receiving an actionable push notification.
@@ -55,10 +55,10 @@ index 78433ec..54c603d 100644
          if registeredState != nil {
              // This should happen at any launch, background or foreground.
 diff --git a/Signal/AppLaunch/MainAppContext.swift b/Signal/AppLaunch/MainAppContext.swift
-index e058cae..02d54cc 100644
+index cfcbca4..44e234b 100644
 --- a/Signal/AppLaunch/MainAppContext.swift
 +++ b/Signal/AppLaunch/MainAppContext.swift
-@@ -168,12 +168,27 @@ class MainAppContext: NSObject, AppContext {
+@@ -141,12 +141,27 @@ class MainAppContext: NSObject, AppContext {
      }
  
      func appSharedDataDirectoryPath() -> String {
@@ -151,7 +151,7 @@ index 854e42c..4e6b0af 100644
  
          let previewController = QLPreviewController()
 diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
-index 7ed7513..01fefd0 100644
+index 0e52497..b8db603 100644
 --- a/Signal/ConversationView/ConversationInputToolbar.swift
 +++ b/Signal/ConversationView/ConversationInputToolbar.swift
 @@ -936,6 +936,15 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
@@ -327,7 +327,7 @@ index 7ed7513..01fefd0 100644
  
 @@ -3369,11 +3498,22 @@ extension ConversationInputToolbar: StickerKeyboardDelegate {
  
-     public func stickerKeyboard(_: StickerKeyboard, didSelect stickerInfo: StickerInfo) {
+     func stickerKeyboard(_: StickerKeyboard, didSelect stickerInfo: StickerInfo) {
          AssertIsOnMainThread()
 +#if targetEnvironment(macCatalyst)
 +        stickerPopover?.dismiss(animated: true)
@@ -335,7 +335,7 @@ index 7ed7513..01fefd0 100644
          inputToolbarDelegate?.sendSticker(stickerInfo)
      }
  
-     public func stickerKeyboardDidRequestPresentManageStickersView(_ stickerKeyboard: StickerKeyboard) {
+     func stickerKeyboardDidRequestPresentManageStickersView(_ stickerKeyboard: StickerKeyboard) {
          AssertIsOnMainThread()
 +#if targetEnvironment(macCatalyst)
 +        if let stickerPopover {
@@ -577,10 +577,10 @@ index c7f5d92..decf478 100644
      }
  
 diff --git a/Signal/ConversationView/ConversationViewController.swift b/Signal/ConversationView/ConversationViewController.swift
-index f755644..7218fd2 100644
+index e249a40..188a5fb 100644
 --- a/Signal/ConversationView/ConversationViewController.swift
 +++ b/Signal/ConversationView/ConversationViewController.swift
-@@ -222,6 +222,9 @@ public final class ConversationViewController: OWSViewController {
+@@ -223,6 +223,9 @@ public final class ConversationViewController: OWSViewController {
          owsAssertDebug(self.navigationController != nil || self.isInPreviewPlatter)
  
          super.viewDidLoad()
@@ -590,7 +590,7 @@ index f755644..7218fd2 100644
  
          createContents()
          createConversationScrollButtons()
-@@ -261,6 +264,14 @@ public final class ConversationViewController: OWSViewController {
+@@ -265,6 +268,14 @@ public final class ConversationViewController: OWSViewController {
          self.collectionView.autoPinEdge(toSuperviewEdge: .bottom)
          self.collectionView.autoPinEdge(toSuperviewSafeArea: .leading)
          self.collectionView.autoPinEdge(toSuperviewSafeArea: .trailing)
@@ -661,7 +661,7 @@ index f3c7b87..a17d80c 100644
          self.incomingDeviceTransferTask = try IncomingDeviceTransferTask(
              db: db,
 diff --git a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
-index 858c8ef..058b7af 100644
+index ba55ae6..bd9c067 100644
 --- a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 +++ b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 @@ -3,12 +3,16 @@
@@ -681,7 +681,24 @@ index 858c8ef..058b7af 100644
  
  // MARK: - DeviceTransferStatusViewController
  
-@@ -219,6 +223,7 @@ struct TransferPairingView: View {
+@@ -143,6 +147,8 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
+ 
+     @available(iOS 26, *)
+     private func presentChooseDeviceToPairWithPrompt() {
++        // DevicePairingView is unavailable on Mac Catalyst, which never supports WiFi Aware.
++        #if canImport(DeviceDiscoveryUI)
+         let title: String
+         if coordinator.transferStatusViewModel.discoveredPeers.count > 1 {
+             title = OWSLocalizedString(
+@@ -209,6 +215,7 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
+             }),
+         )
+         present(sheet, animated: true)
++        #endif
+     }
+ 
+     private func presentContinueOnOtherDevicePrompt() {
+@@ -305,6 +312,7 @@ struct TransferPairingView: View {
                  .padding(.horizontal, 8)
              TutorialStack(isNewDevice: isNewDevice)
              Spacer()
@@ -689,9 +706,9 @@ index 858c8ef..058b7af 100644
              if !isNewDevice {
                  DevicePicker(
                      .wifiAware(
-@@ -254,6 +259,7 @@ struct TransferPairingView: View {
-                         .allowsHitTesting(false) // necessary to let touches pass to DevicePairingView
-                 } fallback: {}
+@@ -348,6 +356,7 @@ struct TransferPairingView: View {
+                 }
+                 .buttonStyle(Registration.UI.LargePrimaryButtonStyle())
              }
 +            #endif
              Button(CommonStrings.cancelButton) {
@@ -717,7 +734,7 @@ index b7336d4..f27d4d3 100644
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
-index c1cca71..36964fc8 100644
+index ca07d86..2b173da 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
 @@ -3,6 +3,8 @@
@@ -729,14 +746,14 @@ index c1cca71..36964fc8 100644
  import Foundation
  import Network
  import SignalServiceKit
-@@ -237,3 +239,5 @@ private class AsyncStreamBroadcast<T> {
+@@ -277,3 +279,5 @@ private class AsyncStreamBroadcast<T> {
          }
      }
  }
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
-index 535d7db..2c10cee 100644
+index 8284c62..fde210e 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
 @@ -3,6 +3,8 @@
@@ -748,14 +765,14 @@ index 535d7db..2c10cee 100644
  import CryptoKit
  import Foundation
  import Network
-@@ -164,3 +166,5 @@ class WADeviceTransferOutgoingConnection: DeviceTransfer.OutgoingConnection {
+@@ -222,3 +224,5 @@ class WADeviceTransferOutgoingConnection: DeviceTransfer.OutgoingConnection {
      }
  
  }
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
-index e70e6e3..ad8d6a7 100644
+index 6c7dc3a..cdf24c5 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferPeer.swift
 @@ -3,6 +3,8 @@
@@ -767,8 +784,8 @@ index e70e6e3..ad8d6a7 100644
  import Foundation
  import WiFiAware
  
-@@ -21,3 +23,5 @@ struct WADeviceTransferPeer: DeviceTransfer.Peer {
-         self.pairedDevice = pairedDevice
+@@ -28,3 +30,5 @@ struct WADeviceTransferPeer: DeviceTransfer.Peer, CustomStringConvertible {
+         "WADeviceTransferPeer(id: \(id), pairedDeviceId: \(pairedDevice.id))"
      }
  }
 +
@@ -793,7 +810,7 @@ index 411ceed..22b343b 100644
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift b/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
-index 2b6c025..e245273 100644
+index c3422ee..e704cd4 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WiFiAware+Extensions.swift
 @@ -3,6 +3,8 @@
@@ -805,17 +822,17 @@ index 2b6c025..e245273 100644
  import Foundation
  import Network
  import SignalServiceKit
-@@ -143,3 +145,5 @@ extension WAPairedDevice {
+@@ -146,3 +148,5 @@ extension WAPairedDevice {
          return self.name ?? self.pairingInfo?.pairingName ?? ""
      }
  }
 +
 +#endif
 diff --git a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-index 8392bae..818962a 100644
+index d27b7e5..be68a1b 100644
 --- a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
 +++ b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-@@ -668,6 +668,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -648,6 +648,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
      // MARK: - Helpers
  
      private func getApnRegistrationId() async throws -> RegistrationRequestFactory.ApnRegistrationId? {
@@ -827,7 +844,7 @@ index 8392bae..818962a 100644
          do {
              return try await pushRegistrationManager
                  .requestPushTokens(forceRotation: false)
-@@ -686,6 +691,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -666,6 +671,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
                  throw error
              }
          }
@@ -858,10 +875,10 @@ index a82ff5e..ff64e52 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index 6c09e61..94f6720 100644
+index 4f84759..fabce8c 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
-@@ -629,7 +629,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
+@@ -668,7 +668,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                          localFileBackupBookmarkData,
                          isStale: &isStale,
                      )
@@ -1109,10 +1126,10 @@ index dbf7c58..8dd61dc 100644
          // Content view is centered in view controller's view using "aspect fit" logic.
          constraints.append(contentsOf: [
 diff --git a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-index 30f318f..281d937 100644
+index 84e3685..03519d2 100644
 --- a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
 +++ b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-@@ -786,7 +786,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
+@@ -737,7 +737,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
          var isStale = false
          do {
              resolvedURL = try securityScopedBookmarkAccess.urlForBookmarkData(bookmarkData, isStale: &isStale)
@@ -1124,10 +1141,10 @@ index 30f318f..281d937 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index 77c8075..709a3c6 100644
+index 81f302e..d9e8d6f 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -4998,7 +4998,8 @@ public class GRDBSchemaMigrator {
+@@ -5000,7 +5000,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1137,7 +1154,7 @@ index 77c8075..709a3c6 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5007,6 +5008,7 @@ public class GRDBSchemaMigrator {
+@@ -5009,6 +5010,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }

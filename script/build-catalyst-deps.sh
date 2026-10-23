@@ -21,7 +21,7 @@ fi
 
 # Versions pinned by Signal-iOS (Podfile / Podfile.lock).
 LIBSIGNAL_TAG=v0.105.0
-RINGRTC_TAG=v2.72.1
+RINGRTC_TAG=v2.73.0
 # Signal's LibMobileCoin 6.0.2 artifacts have no public source tag; v6.1.0's C API is identical.
 LIBMOBILECOIN_TAG=v6.1.0
 
@@ -61,10 +61,12 @@ WEBRTC_SRC="$DEPS/ringrtc/src/webrtc/src"
 [ -L "$WEBRTC_SRC/ringrtc/rffi/api" ] || rm -rf "$WEBRTC_SRC/ringrtc/rffi/api"
 ln -sfn "$DEPS/ringrtc/src/rust/src/webrtc_include" "$WEBRTC_SRC/ringrtc/rffi/api"
 # Same GN args as RingRTC's bin/build-ios, for the Catalyst environment. use_lld=false: Chromium's
-# bundled lld can't read the newest macOS SDK's .tbd stubs, so link with Apple's ld.
+# bundled lld can't read the newest macOS SDK's .tbd stubs, so link with Apple's ld. The host
+# toolchain (code generators such as cppgen_plugin) forces lld for iOS builds; turn that off too.
+sed -i '' 's/^\( *\)use_lld = true$/\1use_lld = false/' "$WEBRTC_SRC/build/toolchain/mac/BUILD.gn"
 (cd "$WEBRTC_SRC" && ./tools_webrtc/ios/build_ios_libs.py -o out/catalyst --build_config release \
   --arch catalyst:arm64 --deployment-target 14.0 \
-  --extra-gn-args "rtc_build_examples=false rtc_build_tools=false rtc_include_tests=false rtc_enable_protobuf=false rtc_enable_sctp=false rtc_libvpx_build_vp9=true rtc_disable_metrics=true rtc_disable_trace_events=true rtc_opus_support_dred=true use_lld=false")
+  --extra-gn-args "rtc_build_examples=false rtc_build_tools=false rtc_include_tests=false rtc_enable_protobuf=false rtc_enable_sctp=false rtc_libvpx_build_vp9=true rtc_disable_metrics=true rtc_disable_trace_events=true rtc_opus_support_dred=true rtc_video_psnr=false use_lld=false")
 rm -rf "$DEPS/webrtc-catalyst" && mkdir -p "$DEPS/webrtc-catalyst"
 cp -R "$WEBRTC_SRC/out/catalyst/WebRTC.xcframework/ios-arm64-maccatalyst/WebRTC.framework" "$DEPS/webrtc-catalyst/"
 
