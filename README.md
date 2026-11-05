@@ -8,7 +8,7 @@ git submodule, as a native **Mac Catalyst** app for Apple silicon Macs.
 ## Requirements
 
 - Apple silicon Mac, Xcode 26+
-- rustup, protoc, cmake and coreutils: `brew install rustup protobuf cmake coreutils`
+- rustup, protoc, cmake, coreutils and Python 3.10+: `brew install rustup protobuf cmake coreutils python`
 - About 20 GB of free disk space for the WebRTC checkout
 
 ## Build
@@ -17,7 +17,7 @@ A fresh install, in order:
 
 ```sh
 # 1. Tools (once). Xcode 26 itself comes from the App Store.
-brew install rustup protobuf cmake coreutils
+brew install rustup protobuf cmake coreutils python
 rustup-init -y
 
 # 2. Get the code
@@ -58,9 +58,10 @@ them for `aarch64-apple-ios-macabi`, at the versions Signal-iOS pins:
 | WebRTC | C++ (Chromium tooling) | linked with Apple's `ld`; the bundled lld can't read the newest SDK |
 | libmobilecoin | Rust | built from v6.1.0, which has the same C API as Signal's 6.0.2 artifacts |
 
-`build-catalyst.sh` runs `xcodebuild` on the unmodified Signal workspace. `Config/Catalyst.xcconfig`
-points the Pods at those libraries. `Config/CatalystStubs` stands in for an iOS-only framework the
-project links. `Config/Signal-Catalyst.entitlements` replaces Signal's entitlements.
+`build-catalyst.sh` runs `xcodebuild` on the unmodified Signal workspace. It adds a Catalyst slice
+to the libsignal and libmobilecoin XCFrameworks of Signal's Swift packages, and
+`Config/Catalyst.xcconfig` points the RingRTC and WebRTC Pods at their Catalyst builds.
+`Config/CatalystStubs` stands in for an iOS-only framework the project links. `Config/Signal-Catalyst.entitlements` replaces Signal's entitlements.
 
 **Signing:** the app is signed ad hoc, so building needs no Apple developer account and the build
 doesn't expire (free-account provisioning profiles do, after 7 days). That works because the

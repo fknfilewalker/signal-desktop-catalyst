@@ -22,7 +22,7 @@ index 44e14af..a3175f4 100644
          _ application: UIApplication,
          didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
 diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
-index 0112fa4..3845e6f 100644
+index ddd9f11..393a88c 100644
 --- a/Signal/AppLaunch/AppLifecycleManager.swift
 +++ b/Signal/AppLaunch/AppLifecycleManager.swift
 @@ -111,9 +111,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
@@ -39,7 +39,7 @@ index 0112fa4..3845e6f 100644
  
          clearAppropriateNotificationsAndRestoreBadgeCount()
  
-@@ -946,9 +950,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
+@@ -947,9 +951,14 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
          // Fetch messages as soon as possible after launching. In particular, when
          // launching from the background, without this, we end up waiting some extra
          // seconds before receiving an actionable push notification.
@@ -118,25 +118,25 @@ index b840bbc..c792dca 100644
  
          // These arrive in the connection options rather than via the callbacks
 diff --git a/Signal/ConversationView/CVViewState.swift b/Signal/ConversationView/CVViewState.swift
-index 71ab194..2525ddb 100644
+index dc31ad3..d5abf3e 100644
 --- a/Signal/ConversationView/CVViewState.swift
 +++ b/Signal/ConversationView/CVViewState.swift
-@@ -120,6 +120,10 @@ public class CVViewState: NSObject {
-     public let collectionViewContextMenuGestureRecognizer = UILongPressGestureRecognizer()
-     public var collectionViewContextMenuSecondaryClickRecognizer = UITapGestureRecognizer()
-     public let collectionViewPanGestureRecognizer = UIPanGestureRecognizer()
+@@ -120,6 +120,10 @@ class CVViewState {
+     let collectionViewContextMenuGestureRecognizer = UILongPressGestureRecognizer()
+     var collectionViewContextMenuSecondaryClickRecognizer = UITapGestureRecognizer()
+     let collectionViewPanGestureRecognizer = UIPanGestureRecognizer()
 +#if targetEnvironment(macCatalyst)
-+    public var collectionViewSecondaryClickMenuDelegate: UIContextMenuInteractionDelegate?
-+    public var isPresentingContextMenuFromSecondaryClick = false
++    var collectionViewSecondaryClickMenuDelegate: UIContextMenuInteractionDelegate?
++    var isPresentingContextMenuFromSecondaryClick = false
 +#endif
  
-     public var collectionViewActiveContextMenuInteraction: ChatHistoryContextMenuInteraction?
-     public var longPressHandler: CVLongPressHandler?
+     var collectionViewActiveContextMenuInteraction: ChatHistoryContextMenuInteraction?
+     var longPressHandler: CVLongPressHandler?
 diff --git a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift b/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
-index 854e42c..4e6b0af 100644
+index 40a4526..476e204 100644
 --- a/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
 +++ b/Signal/ConversationView/Components/CVComponentGenericAttachment.swift
-@@ -422,10 +422,13 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
+@@ -424,10 +424,13 @@ class CVComponentGenericAttachment: CVComponentBase, CVComponent, CVAccessibilit
          guard let url = try? attachmentStream.makeDecryptedCopy(filename: sourceFilename) else {
              return nil
          }
@@ -151,10 +151,10 @@ index 854e42c..4e6b0af 100644
  
          let previewController = QLPreviewController()
 diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
-index 0e52497..b8db603 100644
+index 09877b7..07bccb4 100644
 --- a/Signal/ConversationView/ConversationInputToolbar.swift
 +++ b/Signal/ConversationView/ConversationInputToolbar.swift
-@@ -936,6 +936,15 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+@@ -938,6 +938,15 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
                  }
              }()
              attachmentButton.setButtonState(buttonState, usingAnimator: animator)
@@ -170,7 +170,7 @@ index 0e52497..b8db603 100644
          }
  
          //
-@@ -3052,8 +3061,14 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+@@ -3057,8 +3066,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func showStickerKeyboard() {
          AssertIsOnMainThread()
@@ -185,7 +185,7 @@ index 0e52497..b8db603 100644
      }
  
      private var _attachmentKeyboard: AttachmentKeyboard?
-@@ -3069,8 +3084,14 @@ public class ConversationInputToolbar: UIView, QuotedReplyPreviewDelegate {
+@@ -3074,8 +3089,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func showAttachmentKeyboard() {
          AssertIsOnMainThread()
@@ -200,7 +200,7 @@ index 0e52497..b8db603 100644
      }
  
      private func toggleKeyboardType(_ keyboardType: KeyboardType, animated: Bool) {
-@@ -3250,6 +3271,51 @@ extension ConversationInputToolbar {
+@@ -3252,6 +3273,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
          inputToolbarDelegate.cameraButtonPressed()
      }
  
@@ -252,7 +252,7 @@ index 0e52497..b8db603 100644
      private func addOrCancelButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
          if isEditingMessage {
-@@ -3293,9 +3359,72 @@ extension ConversationInputToolbar {
+@@ -3298,9 +3364,72 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
              inputToolbarDelegate?.presentManageStickersView()
              return
          }
@@ -325,7 +325,7 @@ index 0e52497..b8db603 100644
      private func keyboardButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
  
-@@ -3369,11 +3498,22 @@ extension ConversationInputToolbar: StickerKeyboardDelegate {
+@@ -3369,11 +3498,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func stickerKeyboard(_: StickerKeyboard, didSelect stickerInfo: StickerInfo) {
          AssertIsOnMainThread()
@@ -347,21 +347,21 @@ index 0e52497..b8db603 100644
 +#endif
          inputToolbarDelegate?.presentManageStickersView()
      }
- }
+ 
 diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-index 3881a23..f238fb3 100644
+index 4960008..4066c71 100644
 --- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 +++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-@@ -805,6 +805,47 @@ extension ConversationViewController: UIDocumentPickerDelegate {
+@@ -792,6 +792,47 @@ extension ConversationViewController {
      }
  
-     public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
+     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
 +        didPickDocument(at: url)
 +    }
 +
 +#if targetEnvironment(macCatalyst)
 +    // On Mac the picker only calls this method, not the deprecated single-document one above.
-+    public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
++    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
 +        didPickDocuments(at: urls)
 +    }
 +
@@ -400,7 +400,7 @@ index 3881a23..f238fb3 100644
          let resourceValues: URLResourceValues?
          do {
              resourceValues = try url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
-@@ -1046,3 +1087,65 @@ extension ConversationViewController: PollSendDelegate {
+@@ -1024,3 +1065,65 @@ extension ConversationViewController {
          )
      }
  }
@@ -467,10 +467,10 @@ index 3881a23..f238fb3 100644
 +
 +#endif
 diff --git a/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift b/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
-index e7ca39d..c402f94 100644
+index 356567e..2d90cee 100644
 --- a/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
 +++ b/Signal/ConversationView/ConversationViewController+GestureRecognizers.swift
-@@ -33,6 +33,14 @@ extension ConversationViewController: UIGestureRecognizerDelegate {
+@@ -33,6 +33,14 @@ extension ConversationViewController {
          collectionViewContextMenuSecondaryClickRecognizer.delegate = self
          collectionView.addGestureRecognizer(collectionViewContextMenuSecondaryClickRecognizer)
  
@@ -485,7 +485,7 @@ index e7ca39d..c402f94 100644
          collectionViewPanGestureRecognizer.addTarget(self, action: #selector(handlePanGesture))
          collectionViewPanGestureRecognizer.delegate = self
          collectionView.addGestureRecognizer(collectionViewPanGestureRecognizer)
-@@ -219,6 +227,28 @@ extension ConversationViewController {
+@@ -212,6 +220,28 @@ extension ConversationViewController {
          longPressHandler.startContextMenuGesture(cell: cell)
      }
  
@@ -514,7 +514,7 @@ index e7ca39d..c402f94 100644
      private func findLongPressHandler(sender: UILongPressGestureRecognizer) -> CVLongPressHandler? {
          guard let cell = findCell(forGesture: sender) else {
              return nil
-@@ -520,3 +550,45 @@ public class CVPanHandler {
+@@ -513,3 +543,45 @@ class CVPanHandler {
          )
      }
  }
@@ -561,10 +561,10 @@ index e7ca39d..c402f94 100644
 +
 +#endif
 diff --git a/Signal/ConversationView/ConversationViewController+MessageActions.swift b/Signal/ConversationView/ConversationViewController+MessageActions.swift
-index c7f5d92..decf478 100644
+index 01cdad3..8ab5fbc 100644
 --- a/Signal/ConversationView/ConversationViewController+MessageActions.swift
 +++ b/Signal/ConversationView/ConversationViewController+MessageActions.swift
-@@ -23,6 +23,11 @@ extension ConversationViewController {
+@@ -22,6 +22,11 @@ extension ConversationViewController {
          if collectionViewContextMenuSecondaryClickRecognizer.state == .ended {
              presentImmediately = true
          }
@@ -577,10 +577,10 @@ index c7f5d92..decf478 100644
      }
  
 diff --git a/Signal/ConversationView/ConversationViewController.swift b/Signal/ConversationView/ConversationViewController.swift
-index e249a40..188a5fb 100644
+index 23c0095..5a83623 100644
 --- a/Signal/ConversationView/ConversationViewController.swift
 +++ b/Signal/ConversationView/ConversationViewController.swift
-@@ -223,6 +223,9 @@ public final class ConversationViewController: OWSViewController {
+@@ -233,6 +233,9 @@ final class ConversationViewController: OWSViewController, OWSNavigationChildCon
          owsAssertDebug(self.navigationController != nil || self.isInPreviewPlatter)
  
          super.viewDidLoad()
@@ -590,7 +590,7 @@ index e249a40..188a5fb 100644
  
          createContents()
          createConversationScrollButtons()
-@@ -265,6 +268,14 @@ public final class ConversationViewController: OWSViewController {
+@@ -275,6 +278,14 @@ final class ConversationViewController: OWSViewController, OWSNavigationChildCon
          self.collectionView.autoPinEdge(toSuperviewEdge: .bottom)
          self.collectionView.autoPinEdge(toSuperviewSafeArea: .leading)
          self.collectionView.autoPinEdge(toSuperviewSafeArea: .trailing)
@@ -606,7 +606,7 @@ index e249a40..188a5fb 100644
          self.collectionView.accessibilityIdentifier = "collectionView"
  
 diff --git a/Signal/DeviceTransfer/DeviceTransfer.swift b/Signal/DeviceTransfer/DeviceTransfer.swift
-index 167af0f..0f6cef3 100644
+index 1455454..374f719 100644
 --- a/Signal/DeviceTransfer/DeviceTransfer.swift
 +++ b/Signal/DeviceTransfer/DeviceTransfer.swift
 @@ -6,7 +6,9 @@
@@ -639,10 +639,10 @@ index 167af0f..0f6cef3 100644
  
      enum Error: Swift.Error {
 diff --git a/Signal/DeviceTransfer/DeviceTransferCoordinator.swift b/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
-index f3c7b87..a17d80c 100644
+index 69b0241..0f9a992 100644
 --- a/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
 +++ b/Signal/DeviceTransfer/DeviceTransferCoordinator.swift
-@@ -104,6 +104,7 @@ public class DeviceTransferCoordinator: Equatable {
+@@ -104,6 +104,7 @@ public class DeviceTransferCoordinator {
          self.supportsWifiAware = supportsWifiAware
          self.transferStatusViewModel.supportsWifiAware = supportsWifiAware
          let factory: DeviceTransfer.ConnectionFactory
@@ -650,7 +650,7 @@ index f3c7b87..a17d80c 100644
          if
              #available(iOS 26.0, *),
              supportsWifiAware
-@@ -112,6 +113,9 @@ public class DeviceTransferCoordinator: Equatable {
+@@ -112,6 +113,9 @@ public class DeviceTransferCoordinator {
          } else {
              factory = MPCDeviceTransferConnectionFactory()
          }
@@ -734,7 +734,7 @@ index b7336d4..f27d4d3 100644
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
-index ca07d86..2b173da 100644
+index d7a1692..81fe8aa 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferIncomingConnection.swift
 @@ -3,6 +3,8 @@
@@ -746,14 +746,14 @@ index ca07d86..2b173da 100644
  import Foundation
  import Network
  import SignalServiceKit
-@@ -277,3 +279,5 @@ private class AsyncStreamBroadcast<T> {
+@@ -343,3 +345,5 @@ private class AsyncStreamBroadcast<T> {
          }
      }
  }
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
-index 8284c62..fde210e 100644
+index 07aaf37..d72306b 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferOutgoingConnection.swift
 @@ -3,6 +3,8 @@
@@ -765,7 +765,7 @@ index 8284c62..fde210e 100644
  import CryptoKit
  import Foundation
  import Network
-@@ -222,3 +224,5 @@ class WADeviceTransferOutgoingConnection: DeviceTransfer.OutgoingConnection {
+@@ -231,3 +233,5 @@ class WADeviceTransferOutgoingConnection: DeviceTransfer.OutgoingConnection {
      }
  
  }
@@ -791,7 +791,7 @@ index 6c7dc3a..cdf24c5 100644
 +
 +#endif
 diff --git a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
-index 411ceed..22b343b 100644
+index f3e2379..063cf2a 100644
 --- a/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
 +++ b/Signal/DeviceTransfer/WiFiAware/WADeviceTransferSession.swift
 @@ -3,6 +3,8 @@
@@ -803,7 +803,7 @@ index 411ceed..22b343b 100644
  import Foundation
  import Network
  import SignalServiceKit
-@@ -174,3 +176,5 @@ class WADeviceTransferSession: DeviceTransfer.Session {
+@@ -183,3 +185,5 @@ class WADeviceTransferSession: DeviceTransfer.Session {
          return info.fileUrl
      }
  }
@@ -853,7 +853,7 @@ index d27b7e5..be68a1b 100644
  
      private typealias VerifySecondaryDeviceResponse = Service.VerifySecondaryDeviceResponse
 diff --git a/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift b/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
-index a82ff5e..ff64e52 100644
+index 0019404..cf719a2 100644
 --- a/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
 +++ b/Signal/QuickRestore/OutgoingDeviceRestoreViewModel.swift
 @@ -83,6 +83,7 @@ class OutgoingDeviceRestoreViewModel: ObservableObject {
@@ -875,7 +875,7 @@ index a82ff5e..ff64e52 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index 4f84759..fabce8c 100644
+index a1e8fa3..ce7ee2d 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
 @@ -668,7 +668,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
@@ -1126,10 +1126,10 @@ index dbf7c58..8dd61dc 100644
          // Content view is centered in view controller's view using "aspect fit" logic.
          constraints.append(contentsOf: [
 diff --git a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-index 84e3685..03519d2 100644
+index 47e845b..c5f8889 100644
 --- a/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
 +++ b/SignalServiceKit/Backups/LocalFileBackup/LocalFileBackupManager.swift
-@@ -737,7 +737,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
+@@ -744,7 +744,9 @@ public class LocalFileBackupManager: NSObject, UIDocumentPickerDelegate {
          var isStale = false
          do {
              resolvedURL = try securityScopedBookmarkAccess.urlForBookmarkData(bookmarkData, isStale: &isStale)
@@ -1141,10 +1141,10 @@ index 84e3685..03519d2 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index 81f302e..d9e8d6f 100644
+index e100725..54a9519 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -5000,7 +5000,8 @@ public class GRDBSchemaMigrator {
+@@ -5003,7 +5003,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1154,7 +1154,7 @@ index 81f302e..d9e8d6f 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5009,6 +5010,7 @@ public class GRDBSchemaMigrator {
+@@ -5012,6 +5013,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }

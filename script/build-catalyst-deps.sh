@@ -7,7 +7,7 @@
 #   WebRTC        (C++, Chromium) -> build/deps/webrtc-catalyst/WebRTC.framework
 #   libmobilecoin (Rust)          -> build/deps/libmobilecoin/.../libmobilecoin.a
 #
-# Needs: rustup, protoc, cmake, coreutils (grealpath), ~20 GB of disk for WebRTC.
+# Needs: rustup, protoc, cmake, coreutils (grealpath), Python 3.10+, ~20 GB of disk for WebRTC.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,9 +18,13 @@ mkdir -p "$DEPS"
 if ! command -v cargo >/dev/null && [ -d "$(brew --prefix rustup 2>/dev/null)/bin" ]; then
   export PATH="$(brew --prefix rustup)/bin:$PATH"
 fi
+# libsignal's build helpers need Python 3.10+; macOS ships 3.9.
+if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
+  export PATH="$(ls -d "$(brew --prefix)"/opt/python@3.*/libexec/bin | sort -V | tail -1):$PATH"
+fi
 
-# Versions pinned by Signal-iOS (Podfile / Podfile.lock).
-LIBSIGNAL_TAG=v0.105.0
+# Versions pinned by Signal-iOS (Podfile.lock, Package.resolved and BinaryDependencies).
+LIBSIGNAL_TAG=v0.106.1
 RINGRTC_TAG=v2.73.0
 # Signal's LibMobileCoin 6.0.2 artifacts have no public source tag; v6.1.0's C API is identical.
 LIBMOBILECOIN_TAG=v6.1.0
@@ -39,9 +43,13 @@ clone https://github.com/signalapp/libsignal.git "$LIBSIGNAL_TAG" "$DEPS/libsign
 rustup target add "$TARGET" --toolchain "$(cat "$DEPS/libsignal/rust-toolchain")"
 # boring-sys has no CMake settings for Catalyst (app bundles must be off for iOS-family targets),
 # so build with a local copy that adds them. Cargo picks the patch up from build/deps/.cargo.
-if [ ! -d "$DEPS/boring" ]; then
-  git clone --depth 1 --recurse-submodules --shallow-submodules --branch signal-v5.2.0 https://github.com/signalapp/boring.git "$DEPS/boring"
+# Use the boring tag libsignal pins, and start from a fresh copy when it changes.
+BORING_TAG="$(sed -n "s/^boring = { git = .*tag = \"\(.*\)\" }$/\1/p" "$DEPS/libsignal/Cargo.toml")"
+if [ "$(cat "$DEPS/boring.tag" 2>/dev/null)" != "$BORING_TAG" ]; then
+  rm -rf "$DEPS/boring"
+  git clone --depth 1 --recurse-submodules --shallow-submodules --branch "$BORING_TAG" https://github.com/signalapp/boring.git "$DEPS/boring"
   git -C "$DEPS/boring" apply "$ROOT/patches/boring-sys-catalyst.patch"
+  echo "$BORING_TAG" > "$DEPS/boring.tag"
 fi
 mkdir -p "$DEPS/.cargo"
 cp "$ROOT/patches/cargo-config.toml" "$DEPS/.cargo/config.toml"
