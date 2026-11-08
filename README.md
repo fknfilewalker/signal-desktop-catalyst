@@ -24,23 +24,20 @@ rustup-init -y
 git clone --recursive https://github.com/fknfilewalker/signal-desktop-catalyst.git
 cd signal-desktop-catalyst
 
-# 3. Signal-iOS dependencies: Signal's `make dependencies` (Pods, RingRTC headers)
-script/prepare-signal-ios.sh
-
-# 4. Native libraries for Catalyst: libsignal, WebRTC, RingRTC, libmobilecoin (once, slow)
+# 3. Native libraries for Catalyst: libsignal, WebRTC, RingRTC, libmobilecoin (once, slow)
 script/build-catalyst-deps.sh
 
-# 5. The Mac changes to Signal-iOS
+# 4. The Mac changes to Signal-iOS
 git -C Signal-iOS apply ../patches/signal-ios-catalyst.patch
 
-# 6. Build the app (signed ad hoc: no Apple account needed)
+# 5. Build the app (signed ad hoc: no Apple account needed)
 script/build-catalyst.sh
 
-# 7. Run it, then link it from your phone: Settings → Linked devices → Link new device
+# 6. Run it, then link it from your phone: Settings → Linked devices → Link new device
 open "build/DerivedData-Catalyst/Build/Products/App Store Release-maccatalyst/Signal.app"
 ```
 
-Steps 3 to 5 only run once. To update the app after changing something, run step 6 again.
+Steps 3 and 4 only run once. To update the app after changing something, run step 5 again.
 
 `build-catalyst.sh` builds the "App Store Release" configuration. Set `CONFIGURATION=Debug` for a
 debug build. Its developer checks stop the app on unexpected data, which release builds log and
@@ -49,18 +46,19 @@ skip.
 ## How it works
 
 Signal only ships its native dependencies for iPhone and iPad. `build-catalyst-deps.sh` compiles
-them for `aarch64-apple-ios-macabi`, at the versions Signal-iOS pins:
+them for `aarch64-apple-ios-macabi`, at the versions Signal-iOS pins (read from its
+`BinaryDependencies/Package.swift`):
 
 | Library | Source | Notes |
 | --- | --- | --- |
 | libsignal | Rust | boring-sys gets Catalyst CMake settings (`patches/boring-sys-catalyst.patch`) |
-| RingRTC | Rust | |
+| RingRTC | Rust | its Swift sources get a guard for an iPad-only camera API (`patches/ringrtc-catalyst.patch`) |
 | WebRTC | C++ (Chromium tooling) | linked with Apple's `ld`; the bundled lld can't read the newest SDK |
 | libmobilecoin | Rust | built from v6.1.0, which has the same C API as Signal's 6.0.2 artifacts |
 
-`build-catalyst.sh` runs `xcodebuild` on the unmodified Signal workspace. It adds a Catalyst slice
-to the libsignal and libmobilecoin XCFrameworks of Signal's Swift packages, and
-`Config/Catalyst.xcconfig` points the RingRTC and WebRTC Pods at their Catalyst builds.
+`build-catalyst.sh` runs `xcodebuild` on the unmodified Signal workspace. After resolving Signal's
+Swift packages, it adds a Catalyst slice to the libsignal, libmobilecoin, RingRTC and WebRTC
+XCFrameworks they download. `Config/Catalyst.xcconfig` holds the Catalyst build settings, and
 `Config/CatalystStubs` stands in for an iOS-only framework the project links. `Config/Signal-Catalyst.entitlements` replaces Signal's entitlements.
 
 **Signing:** the app is signed ad hoc, so building needs no Apple developer account and the build

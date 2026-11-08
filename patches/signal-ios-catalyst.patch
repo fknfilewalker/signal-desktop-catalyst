@@ -22,7 +22,7 @@ index 44e14af..a3175f4 100644
          _ application: UIApplication,
          didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil,
 diff --git a/Signal/AppLaunch/AppLifecycleManager.swift b/Signal/AppLaunch/AppLifecycleManager.swift
-index ddd9f11..393a88c 100644
+index 7f6a0b2..a0492ea 100644
 --- a/Signal/AppLaunch/AppLifecycleManager.swift
 +++ b/Signal/AppLaunch/AppLifecycleManager.swift
 @@ -111,9 +111,13 @@ final class AppLifecycleManager: NSObject, UNUserNotificationCenterDelegate {
@@ -151,7 +151,7 @@ index 40a4526..476e204 100644
  
          let previewController = QLPreviewController()
 diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
-index 09877b7..07bccb4 100644
+index f43917e..685956d 100644
 --- a/Signal/ConversationView/ConversationInputToolbar.swift
 +++ b/Signal/ConversationView/ConversationInputToolbar.swift
 @@ -938,6 +938,15 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
@@ -170,22 +170,29 @@ index 09877b7..07bccb4 100644
          }
  
          //
-@@ -3057,8 +3066,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
- 
-     func showStickerKeyboard() {
+@@ -3062,11 +3071,21 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+         bouncingSticker: StickerInfo? = nil,
+     ) {
          AssertIsOnMainThread()
 +#if targetEnvironment(macCatalyst)
-+        if stickerPopover == nil {
-+            presentStickerPopover()
++        if let stickerPopover = stickerPopover as? StickerPopoverViewController {
++            if let page {
++                stickerPopover.select(page: page, bouncingSticker: bouncingSticker)
++            }
++        } else {
++            presentStickerPopover(page: page, bouncingSticker: bouncingSticker)
 +        }
 +#else
+         if let page {
+             stickerKeyboard.select(page: page, bouncingSticker: bouncingSticker)
+         }
          guard desiredKeyboardType != .sticker else { return }
          toggleKeyboardType(.sticker, animated: false)
 +#endif
      }
  
      private var _attachmentKeyboard: AttachmentKeyboard?
-@@ -3074,8 +3089,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3082,8 +3101,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func showAttachmentKeyboard() {
          AssertIsOnMainThread()
@@ -200,7 +207,7 @@ index 09877b7..07bccb4 100644
      }
  
      private func toggleKeyboardType(_ keyboardType: KeyboardType, animated: Bool) {
-@@ -3252,6 +3273,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3260,6 +3285,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
          inputToolbarDelegate.cameraButtonPressed()
      }
  
@@ -252,12 +259,12 @@ index 09877b7..07bccb4 100644
      private func addOrCancelButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
          if isEditingMessage {
-@@ -3298,9 +3364,72 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3306,8 +3376,89 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
              inputToolbarDelegate?.presentManageStickersView()
              return
          }
 +#if targetEnvironment(macCatalyst)
-+        presentStickerPopover()
++        presentStickerPopover(page: nil, bouncingSticker: nil)
 +#else
          toggleKeyboardType(.sticker, animated: true)
 +#endif
@@ -267,8 +274,8 @@ index 09877b7..07bccb4 100644
 +    private var containingViewController: UIViewController? {
 +        return sequence(first: self as UIResponder, next: { $0.next })
 +            .lazy.compactMap { $0 as? UIViewController }.first
-     }
- 
++    }
++
 +    private var stickerPopover: UIViewController? {
 +        guard
 +            let presented = containingViewController?.presentedViewController,
@@ -281,9 +288,11 @@ index 09877b7..07bccb4 100644
 +
 +    private class StickerPopoverViewController: UIViewController {
 +        private let stickerKeyboard: StickerKeyboard
++        private var initialPage: (page: StickerPickerPage, bouncingSticker: StickerInfo?)?
 +
-+        init(stickerKeyboard: StickerKeyboard) {
++        init(stickerKeyboard: StickerKeyboard, page: StickerPickerPage?, bouncingSticker: StickerInfo?) {
 +            self.stickerKeyboard = stickerKeyboard
++            self.initialPage = page.map { ($0, bouncingSticker) }
 +            super.init(nibName: nil, bundle: nil)
 +            preferredContentSize = CGSize(width: 400, height: 360)
 +        }
@@ -307,32 +316,47 @@ index 09877b7..07bccb4 100644
 +            view.addSubview(stickerKeyboard)
 +            stickerKeyboard.autoPinEdgesToSuperviewEdges()
 +            view.layoutIfNeeded()
++            if let initialPage {
++                stickerKeyboard.select(page: initialPage.page, bouncingSticker: initialPage.bouncingSticker)
++                self.initialPage = nil
++            }
++        }
++
++        func select(page: StickerPickerPage, bouncingSticker: StickerInfo?) {
++            guard stickerKeyboard.superview != nil else {
++                initialPage = (page, bouncingSticker)
++                return
++            }
++            stickerKeyboard.select(page: page, bouncingSticker: bouncingSticker)
 +        }
 +    }
 +
 +    /// Mac Catalyst never shows a custom inputView, so the sticker keyboard can't appear in place
 +    /// of the system keyboard. Show it in a popover from the sticker button instead.
-+    private func presentStickerPopover() {
++    private func presentStickerPopover(page: StickerPickerPage?, bouncingSticker: StickerInfo?) {
 +        guard let presenter = containingViewController else { return }
 +
-+        let viewController = StickerPopoverViewController(stickerKeyboard: StickerKeyboard(delegate: self))
++        let viewController = StickerPopoverViewController(
++            stickerKeyboard: StickerKeyboard(delegate: self),
++            page: page,
++            bouncingSticker: bouncingSticker,
++        )
 +        viewController.modalPresentationStyle = .popover
 +        viewController.popoverPresentationController?.sourceView = stickerButton
 +        presenter.present(viewController, animated: true)
-+    }
+     }
 +#endif
-+
+ 
      private func keyboardButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
+@@ -3377,11 +3528,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
-@@ -3369,11 +3498,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
- 
-     func stickerKeyboard(_: StickerKeyboard, didSelect stickerInfo: StickerInfo) {
+     func stickerKeyboard(_: StickerKeyboard, didSelect stickerMetadata: any StickerMetadata) {
          AssertIsOnMainThread()
 +#if targetEnvironment(macCatalyst)
 +        stickerPopover?.dismiss(animated: true)
 +#endif
-         inputToolbarDelegate?.sendSticker(stickerInfo)
+         inputToolbarDelegate?.sendSticker(stickerMetadata)
      }
  
      func stickerKeyboardDidRequestPresentManageStickersView(_ stickerKeyboard: StickerKeyboard) {
@@ -349,7 +373,7 @@ index 09877b7..07bccb4 100644
      }
  
 diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-index 4960008..4066c71 100644
+index 17fdb56..6386cbd 100644
 --- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 +++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 @@ -792,6 +792,47 @@ extension ConversationViewController {
@@ -829,10 +853,10 @@ index c3422ee..e704cd4 100644
 +
 +#endif
 diff --git a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-index d27b7e5..be68a1b 100644
+index 2e77d3a..e523380 100644
 --- a/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
 +++ b/Signal/Provisioning/ProvisioningCoordinatorImpl.swift
-@@ -648,6 +648,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -634,6 +634,11 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
      // MARK: - Helpers
  
      private func getApnRegistrationId() async throws -> RegistrationRequestFactory.ApnRegistrationId? {
@@ -844,7 +868,7 @@ index d27b7e5..be68a1b 100644
          do {
              return try await pushRegistrationManager
                  .requestPushTokens(forceRotation: false)
-@@ -666,6 +671,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
+@@ -652,6 +657,7 @@ class ProvisioningCoordinatorImpl: ProvisioningCoordinator {
                  throw error
              }
          }
@@ -875,10 +899,10 @@ index 0019404..cf719a2 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index a1e8fa3..ce7ee2d 100644
+index d4bf5f8..cc09338 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
-@@ -668,7 +668,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
+@@ -649,7 +649,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                          localFileBackupBookmarkData,
                          isStale: &isStale,
                      )
@@ -1141,10 +1165,10 @@ index 47e845b..c5f8889 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index e100725..54a9519 100644
+index 209448e..495fc71 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -5003,7 +5003,8 @@ public class GRDBSchemaMigrator {
+@@ -5004,7 +5004,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1154,7 +1178,7 @@ index e100725..54a9519 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5012,6 +5013,7 @@ public class GRDBSchemaMigrator {
+@@ -5013,6 +5014,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }

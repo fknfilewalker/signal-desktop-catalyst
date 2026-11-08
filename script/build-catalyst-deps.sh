@@ -3,7 +3,7 @@
 # iPhone/iPad, so they're compiled from source at the versions Signal-iOS pins:
 #
 #   libsignal     (Rust)          -> build/deps/libsignal/.../libsignal_ffi.a
-#   RingRTC       (Rust)          -> build/deps/ringrtc/out/.../libringrtc.a
+#   RingRTC       (Rust)          -> build/deps/ringrtc/out/build/.../libringrtc.a
 #   WebRTC        (C++, Chromium) -> build/deps/webrtc-catalyst/WebRTC.framework
 #   libmobilecoin (Rust)          -> build/deps/libmobilecoin/.../libmobilecoin.a
 #
@@ -23,9 +23,11 @@ if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; 
   export PATH="$(ls -d "$(brew --prefix)"/opt/python@3.*/libexec/bin | sort -V | tail -1):$PATH"
 fi
 
-# Versions pinned by Signal-iOS (Podfile.lock, Package.resolved and BinaryDependencies).
-LIBSIGNAL_TAG=v0.106.1
-RINGRTC_TAG=v2.73.0
+# Versions pinned by Signal-iOS: the libsignal and RingRTC artifacts in BinaryDependencies.
+BINARY_DEPS="$ROOT/Signal-iOS/BinaryDependencies/Package.swift"
+LIBSIGNAL_TAG="$(sed -n 's|.*/libsignal-client-ios-build-\(v[0-9.]*\)\.xcframework\.zip.*|\1|p' "$BINARY_DEPS")"
+RINGRTC_TAG="$(sed -n 's|.*/ringrtc-ios-build-\(v[0-9.]*\)\.xcframework\.zip.*|\1|p' "$BINARY_DEPS")"
+[ -n "$LIBSIGNAL_TAG" ] && [ -n "$RINGRTC_TAG" ] || { echo "No libsignal/RingRTC versions in $BINARY_DEPS" >&2; exit 1; }
 # Signal's LibMobileCoin 6.0.2 artifacts have no public source tag; v6.1.0's C API is identical.
 LIBMOBILECOIN_TAG=v6.1.0
 
@@ -59,11 +61,16 @@ cp "$ROOT/patches/cargo-config.toml" "$DEPS/.cargo/config.toml"
 clone https://github.com/signalapp/ringrtc.git "$RINGRTC_TAG" "$DEPS/ringrtc"
 [ -d "$DEPS/depot_tools" ] || git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$DEPS/depot_tools"
 export PATH="$DEPS/depot_tools:$PATH" DEPOT_TOOLS_UPDATE=0
-# (Re)sync WebRTC when RingRTC's pinned version differs from the last checkout.
+# (Re)sync WebRTC when RingRTC's pinned version differs from the last checkout. RingRTC records the
+# version before syncing, so keep our own marker, written once a sync has finished. gclient refuses
+# to sync over local changes, so first undo the use_lld edit below.
 WEBRTC_VERSION="$(sed -n 's/^webrtc.version=//p' "$DEPS/ringrtc/config/version.properties")"
-grep -qx "CONFIGURED_WEBRTC_VERSION=$WEBRTC_VERSION" "$DEPS/ringrtc/out/webrtc-version.env" 2>/dev/null ||
-  (cd "$DEPS/ringrtc" && bin/prepare-workspace ios)
 WEBRTC_SRC="$DEPS/ringrtc/src/webrtc/src"
+if [ "$(cat "$DEPS/webrtc.version" 2>/dev/null)" != "$WEBRTC_VERSION" ]; then
+  [ -d "$WEBRTC_SRC/build/.git" ] && git -C "$WEBRTC_SRC/build" checkout -- toolchain/mac/BUILD.gn
+  (cd "$DEPS/ringrtc" && bin/prepare-workspace ios)
+  echo "$WEBRTC_VERSION" > "$DEPS/webrtc.version"
+fi
 # WebRTC includes RingRTC's FFI headers as ringrtc/rffi/api. RingRTC's env.sh links them, but only
 # when WebRTC is already checked out, and an older checkout can leave a real directory there.
 [ -L "$WEBRTC_SRC/ringrtc/rffi/api" ] || rm -rf "$WEBRTC_SRC/ringrtc/rffi/api"
@@ -80,8 +87,6 @@ cp -R "$WEBRTC_SRC/out/catalyst/WebRTC.xcframework/ios-arm64-maccatalyst/WebRTC.
 
 [ -f "$DEPS/ringrtc/rust-toolchain" ] && rustup target add "$TARGET" --toolchain "$(cat "$DEPS/ringrtc/rust-toolchain")"
 (cd "$DEPS/ringrtc/src/rust" && CARGO_TARGET_DIR="$DEPS/ringrtc/out/build" cargo rustc --target $TARGET --release --crate-type staticlib)
-mkdir -p "$DEPS/ringrtc/out/release/libringrtc/$TARGET"
-cp "$DEPS/ringrtc/out/build/$TARGET/release/libringrtc.a" "$DEPS/ringrtc/out/release/libringrtc/$TARGET/"
 
 # --- libmobilecoin -----------------------------------------------------------------------------
 clone https://github.com/mobilecoinofficial/libmobilecoin.git "$LIBMOBILECOIN_TAG" "$DEPS/libmobilecoin"

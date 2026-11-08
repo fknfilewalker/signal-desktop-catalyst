@@ -1,7 +1,7 @@
-diff --git a/SignalRingRTC/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift b/SignalRingRTC/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
+diff --git a/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift b/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
 index 4abff583..a563b4b8 100644
---- a/SignalRingRTC/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
-+++ b/SignalRingRTC/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
+--- a/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
++++ b/src/ios/SignalRingRTC/SignalRingRTC/VideoCaptureController.swift
 @@ -56,9 +56,12 @@ public class VideoCaptureController {
      }
  
