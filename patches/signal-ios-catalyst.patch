@@ -151,10 +151,10 @@ index 40a4526..476e204 100644
  
          let previewController = QLPreviewController()
 diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
-index f43917e..685956d 100644
+index 03bbfe5..754aaa4 100644
 --- a/Signal/ConversationView/ConversationInputToolbar.swift
 +++ b/Signal/ConversationView/ConversationInputToolbar.swift
-@@ -938,6 +938,15 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -998,6 +998,15 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
                  }
              }()
              attachmentButton.setButtonState(buttonState, usingAnimator: animator)
@@ -170,7 +170,7 @@ index f43917e..685956d 100644
          }
  
          //
-@@ -3062,11 +3071,21 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3128,11 +3137,21 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
          bouncingSticker: StickerInfo? = nil,
      ) {
          AssertIsOnMainThread()
@@ -192,7 +192,7 @@ index f43917e..685956d 100644
      }
  
      private var _attachmentKeyboard: AttachmentKeyboard?
-@@ -3082,8 +3101,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3148,8 +3167,14 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func showAttachmentKeyboard() {
          AssertIsOnMainThread()
@@ -207,7 +207,7 @@ index f43917e..685956d 100644
      }
  
      private func toggleKeyboardType(_ keyboardType: KeyboardType, animated: Bool) {
-@@ -3260,6 +3285,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3326,6 +3351,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
          inputToolbarDelegate.cameraButtonPressed()
      }
  
@@ -259,10 +259,10 @@ index f43917e..685956d 100644
      private func addOrCancelButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
          if isEditingMessage {
-@@ -3306,8 +3376,89 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
-             inputToolbarDelegate?.presentManageStickersView()
-             return
-         }
+@@ -3361,8 +3431,89 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+     private func stickerButtonPressed() {
+         ImpactHapticFeedback.impactOccurred(style: .light)
+ 
 +#if targetEnvironment(macCatalyst)
 +        presentStickerPopover(page: nil, bouncingSticker: nil)
 +#else
@@ -349,7 +349,7 @@ index f43917e..685956d 100644
  
      private func keyboardButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
-@@ -3377,11 +3528,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3432,11 +3583,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func stickerKeyboard(_: StickerKeyboard, didSelect stickerMetadata: any StickerMetadata) {
          AssertIsOnMainThread()
@@ -373,10 +373,10 @@ index f43917e..685956d 100644
      }
  
 diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-index 17fdb56..6386cbd 100644
+index d655a43..e56399b 100644
 --- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 +++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-@@ -792,6 +792,47 @@ extension ConversationViewController {
+@@ -800,6 +800,47 @@ extension ConversationViewController {
      }
  
      func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
@@ -424,7 +424,7 @@ index 17fdb56..6386cbd 100644
          let resourceValues: URLResourceValues?
          do {
              resourceValues = try url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
-@@ -1024,3 +1065,65 @@ extension ConversationViewController {
+@@ -1010,3 +1051,65 @@ extension ConversationViewController {
          )
      }
  }
@@ -685,7 +685,7 @@ index 69b0241..0f9a992 100644
          self.incomingDeviceTransferTask = try IncomingDeviceTransferTask(
              db: db,
 diff --git a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
-index ba55ae6..bd9c067 100644
+index 4db7601..2060291 100644
 --- a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 +++ b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 @@ -3,12 +3,16 @@
@@ -899,10 +899,10 @@ index 0019404..cf719a2 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index d4bf5f8..cc09338 100644
+index 3d79c11..ada35d8 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
-@@ -649,7 +649,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
+@@ -645,7 +645,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                          localFileBackupBookmarkData,
                          isStale: &isStale,
                      )
@@ -970,10 +970,10 @@ index dbd9704..7cdbc69 100644
          mediaInteractiveDismiss.addGestureRecognizer(to: view)
  
 diff --git a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
-index 25618b6..40f63bd 100644
+index 202d179..a63fb0c 100644
 --- a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
 +++ b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
-@@ -103,6 +103,7 @@ class CameraCaptureSession: NSObject {
+@@ -101,6 +101,7 @@ class CameraCaptureSession: NSObject {
          audioCaptureSession.automaticallyConfiguresApplicationAudioSession = false
          audioCaptureSession.usesApplicationAudioSession = true
  
@@ -981,7 +981,7 @@ index 25618b6..40f63bd 100644
          if #available(iOS 16.0, *) {
              if avCaptureSession.isMultitaskingCameraAccessSupported {
                  avCaptureSession.isMultitaskingCameraAccessEnabled = true
-@@ -111,6 +112,7 @@ class CameraCaptureSession: NSObject {
+@@ -109,6 +110,7 @@ class CameraCaptureSession: NSObject {
                  audioCaptureSession.isMultitaskingCameraAccessEnabled = true
              }
          }
@@ -989,7 +989,7 @@ index 25618b6..40f63bd 100644
  
          videoCapture.delegate = self
      }
-@@ -413,6 +415,14 @@ class CameraCaptureSession: NSObject {
+@@ -411,6 +413,14 @@ class CameraCaptureSession: NSObject {
      }()
  
      private class func availableVideoCaptureDevices(forPosition position: AVCaptureDevice.Position) -> [AVCaptureDevice.DeviceType: AVCaptureDevice] {
@@ -1004,7 +1004,7 @@ index 25618b6..40f63bd 100644
          var queryDeviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
          queryDeviceTypes.append(contentsOf: [.builtInUltraWideCamera, .builtInDualWideCamera, .builtInTripleCamera])
          let session = AVCaptureDevice.DiscoverySession(deviceTypes: queryDeviceTypes, mediaType: .video, position: position)
-@@ -420,6 +430,7 @@ class CameraCaptureSession: NSObject {
+@@ -418,6 +428,7 @@ class CameraCaptureSession: NSObject {
              deviceMap[device.deviceType] = device
          }
          return deviceMap
@@ -1012,7 +1012,7 @@ index 25618b6..40f63bd 100644
      }
  
      private func availableVideoCaptureDeviceTypes(forPosition position: AVCaptureDevice.Position) -> [AVCaptureDevice.DeviceType] {
-@@ -506,14 +517,23 @@ class CameraCaptureSession: NSObject {
+@@ -504,14 +515,23 @@ class CameraCaptureSession: NSObject {
          return devices[.builtInDualCamera] ?? devices[.builtInWideAngleCamera]
      }
  
@@ -1036,7 +1036,7 @@ index 25618b6..40f63bd 100644
  
          case .back, .unspecified:
              newPosition = .front
-@@ -788,6 +808,13 @@ class CameraCaptureSession: NSObject {
+@@ -786,6 +806,13 @@ class CameraCaptureSession: NSObject {
          videoRecordingState = .started
          delegate.cameraCaptureSessionWillStartVideoRecording(self)
  
@@ -1050,7 +1050,7 @@ index 25618b6..40f63bd 100644
          let screenAspectRatio: CGFloat
          if screenSize.width > screenSize.height {
              screenAspectRatio = screenSize.height / screenSize.width
-@@ -795,6 +822,7 @@ class CameraCaptureSession: NSObject {
+@@ -793,6 +820,7 @@ class CameraCaptureSession: NSObject {
              screenAspectRatio = screenSize.width / screenSize.height
          }
          let videoAspectRatio = screenAspectRatio.clamp(9 / 16, 3 / 4)
@@ -1058,7 +1058,7 @@ index 25618b6..40f63bd 100644
          let videoCapture = videoCapture
          sessionQueue.async {
              self.setTorchMode(self.flashMode.toTorchMode)
-@@ -1057,7 +1085,13 @@ class CapturePreviewView: UIView {
+@@ -1055,7 +1083,13 @@ class CapturePreviewView: UIView {
              // helpful for debugging layout on simulator which has no real capture device
              previewLayer.backgroundColor = UIColor.green.withAlphaComponent(0.4).cgColor
          }
@@ -1165,10 +1165,10 @@ index 47e845b..c5f8889 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index 209448e..495fc71 100644
+index 6afc862..a320e1b 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -5004,7 +5004,8 @@ public class GRDBSchemaMigrator {
+@@ -5006,7 +5006,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1178,7 +1178,7 @@ index 209448e..495fc71 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5013,6 +5014,7 @@ public class GRDBSchemaMigrator {
+@@ -5015,6 +5016,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }
