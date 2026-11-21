@@ -151,7 +151,7 @@ index 40a4526..476e204 100644
  
          let previewController = QLPreviewController()
 diff --git a/Signal/ConversationView/ConversationInputToolbar.swift b/Signal/ConversationView/ConversationInputToolbar.swift
-index 03bbfe5..754aaa4 100644
+index c5cd8c2..2b5332a 100644
 --- a/Signal/ConversationView/ConversationInputToolbar.swift
 +++ b/Signal/ConversationView/ConversationInputToolbar.swift
 @@ -998,6 +998,15 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
@@ -207,7 +207,7 @@ index 03bbfe5..754aaa4 100644
      }
  
      private func toggleKeyboardType(_ keyboardType: KeyboardType, animated: Bool) {
-@@ -3326,6 +3351,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3331,6 +3356,51 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
          inputToolbarDelegate.cameraButtonPressed()
      }
  
@@ -259,7 +259,7 @@ index 03bbfe5..754aaa4 100644
      private func addOrCancelButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
          if isEditingMessage {
-@@ -3361,8 +3431,89 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3366,8 +3436,89 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
      private func stickerButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
  
@@ -349,7 +349,7 @@ index 03bbfe5..754aaa4 100644
  
      private func keyboardButtonPressed() {
          ImpactHapticFeedback.impactOccurred(style: .light)
-@@ -3432,11 +3583,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
+@@ -3437,11 +3588,22 @@ class ConversationInputToolbar: UIView, AttachmentKeyboardDelegate, Conversation
  
      func stickerKeyboard(_: StickerKeyboard, didSelect stickerMetadata: any StickerMetadata) {
          AssertIsOnMainThread()
@@ -373,7 +373,7 @@ index 03bbfe5..754aaa4 100644
      }
  
 diff --git a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
-index d655a43..e56399b 100644
+index 1ffa7f1..60a243b 100644
 --- a/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 +++ b/Signal/ConversationView/ConversationViewController+ConversationInputToolbarDelegate.swift
 @@ -800,6 +800,47 @@ extension ConversationViewController {
@@ -424,7 +424,7 @@ index d655a43..e56399b 100644
          let resourceValues: URLResourceValues?
          do {
              resourceValues = try url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
-@@ -1010,3 +1051,65 @@ extension ConversationViewController {
+@@ -1016,3 +1057,65 @@ extension ConversationViewController {
          )
      }
  }
@@ -685,7 +685,7 @@ index 69b0241..0f9a992 100644
          self.incomingDeviceTransferTask = try IncomingDeviceTransferTask(
              db: db,
 diff --git a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
-index 4db7601..2060291 100644
+index a9acb91..d0ecf31 100644
 --- a/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 +++ b/Signal/DeviceTransfer/DeviceTransferStatusViewController.swift
 @@ -3,12 +3,16 @@
@@ -705,7 +705,7 @@ index 4db7601..2060291 100644
  
  // MARK: - DeviceTransferStatusViewController
  
-@@ -143,6 +147,8 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
+@@ -149,6 +153,8 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
  
      @available(iOS 26, *)
      private func presentChooseDeviceToPairWithPrompt() {
@@ -714,7 +714,7 @@ index 4db7601..2060291 100644
          let title: String
          if coordinator.transferStatusViewModel.discoveredPeers.count > 1 {
              title = OWSLocalizedString(
-@@ -209,6 +215,7 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
+@@ -215,6 +221,7 @@ class DeviceTransferStatusViewController: HostingController<TransferWrapperView>
              }),
          )
          present(sheet, animated: true)
@@ -722,7 +722,7 @@ index 4db7601..2060291 100644
      }
  
      private func presentContinueOnOtherDevicePrompt() {
-@@ -305,6 +312,7 @@ struct TransferPairingView: View {
+@@ -311,6 +318,7 @@ struct TransferPairingView: View {
                  .padding(.horizontal, 8)
              TutorialStack(isNewDevice: isNewDevice)
              Spacer()
@@ -730,7 +730,7 @@ index 4db7601..2060291 100644
              if !isNewDevice {
                  DevicePicker(
                      .wifiAware(
-@@ -348,6 +356,7 @@ struct TransferPairingView: View {
+@@ -354,6 +362,7 @@ struct TransferPairingView: View {
                  }
                  .buttonStyle(Registration.UI.LargePrimaryButtonStyle())
              }
@@ -899,7 +899,7 @@ index 0019404..cf719a2 100644
              let outgoingDeviceTransferTask = try OutgoingDeviceTransferTask(
                  deviceTransferURL: transferUrl,
 diff --git a/Signal/Registration/RegistrationCoordinatorImpl.swift b/Signal/Registration/RegistrationCoordinatorImpl.swift
-index 3d79c11..ada35d8 100644
+index 3593280..7f69398 100644
 --- a/Signal/Registration/RegistrationCoordinatorImpl.swift
 +++ b/Signal/Registration/RegistrationCoordinatorImpl.swift
 @@ -645,7 +645,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
@@ -970,7 +970,7 @@ index dbd9704..7cdbc69 100644
          mediaInteractiveDismiss.addGestureRecognizer(to: view)
  
 diff --git a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
-index 202d179..a63fb0c 100644
+index 6ff7963..9da85a5 100644
 --- a/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
 +++ b/Signal/src/ViewControllers/Photos/CameraCaptureSession.swift
 @@ -101,6 +101,7 @@ class CameraCaptureSession: NSObject {
@@ -1126,10 +1126,10 @@ index e2645c0..8abe9a4 100644
  
      required init?(coder: NSCoder) {
 diff --git a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
-index dbf7c58..8dd61dc 100644
+index c3bbfff..167bd16 100644
 --- a/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
 +++ b/Signal/src/ViewControllers/Photos/PhotoCaptureViewController.swift
-@@ -627,11 +627,19 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
+@@ -635,11 +635,19 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
          // Use this, instead of `self.view`, to position all UI elements.
          let topLevelContentContainer = view!
  
@@ -1165,10 +1165,10 @@ index 47e845b..c5f8889 100644
          } catch {
              logger.error("failedToResolveBookmark: \(error)")
 diff --git a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-index 6afc862..a320e1b 100644
+index 945eb2c..1c7f211 100644
 --- a/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
 +++ b/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift
-@@ -5006,7 +5006,8 @@ public class GRDBSchemaMigrator {
+@@ -5010,7 +5010,8 @@ public class GRDBSchemaMigrator {
  
          migrator.registerMigration(.dropTSAttachment) { tx in
              // Delete the legacy attachments folder, which is hopefully already
@@ -1178,7 +1178,7 @@ index 6afc862..a320e1b 100644
              if
                  let containerURL = FileManager.default.containerURL(
                      forSecurityApplicationGroupIdentifier: TSConstants.applicationGroup,
-@@ -5015,6 +5016,7 @@ public class GRDBSchemaMigrator {
+@@ -5019,6 +5020,7 @@ public class GRDBSchemaMigrator {
                  let tsAttachmentsDir = containerURL.path.appendingPathComponent("Attachments")
                  try? FileManager.default.removeItem(atPath: tsAttachmentsDir)
              }
